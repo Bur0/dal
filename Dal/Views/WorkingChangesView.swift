@@ -13,6 +13,7 @@ struct WorkingChangesView: View {
         VStack(spacing: 0) {
             header
             Divider()
+            ScrollViewReader { proxy in
             ScrollView {
                 // Lazy, so a working tree with thousands of changed files stays responsive.
                 LazyVStack(alignment: .leading, spacing: 0) {
@@ -29,9 +30,25 @@ struct WorkingChangesView: View {
                 }
                 .padding(.vertical, 6)
             }
+            .onChange(of: store.fileFocus) { _, focus in
+                guard let focus else { return }
+                withAnimation(.easeOut(duration: 0.12)) { proxy.scrollTo(focus) }
+            }
+            }
             Divider()
             composer
         }
+        .onAppear(perform: updateFileOrder)
+        .onChange(of: status) { _, _ in updateFileOrder() }
+        .onChange(of: unstagedOpen) { _, _ in updateFileOrder() }
+        .onChange(of: stagedOpen) { _, _ in updateFileOrder() }
+    }
+
+    /// The order ↑/↓ follows in a diff: what's visible here, top to bottom. Conflicts are left
+    /// out; the merge tool uses ⌘↑/⌘↓ for its own conflicts.
+    private func updateFileOrder() {
+        store.fileOrder = (unstagedOpen ? status.unstaged.map { FileFocus.working($0, staged: false) } : [])
+            + (stagedOpen ? status.staged.map { FileFocus.working($0, staged: true) } : [])
     }
 
     private var header: some View {
@@ -142,6 +159,7 @@ struct WorkingChangesView: View {
                             onDoubleClick: { staged ? store.unstage(change) : store.stage(change) }) {
                         store.fileFocus = .working(change, staged: staged)
                     }
+                    .id(FileFocus.working(change, staged: staged))
                     .contextMenu { fileMenu(change, staged: staged) }
                 }
                 if files.isEmpty {

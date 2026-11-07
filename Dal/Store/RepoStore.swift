@@ -194,6 +194,8 @@ final class RepoStore: Identifiable {
     var busy: String?
     var alert: AppAlert?
     var input: InputRequest?
+    /// Files in the right panel, top to bottom as shown; ↑/↓ in a diff walk through them.
+    @ObservationIgnored var fileOrder: [FileFocus] = []
     /// Solo: the graph shows only these refs' history (full refnames).
     var soloRefs: [String]?
     var soloLabel: String?
@@ -553,6 +555,15 @@ final class RepoStore: Identifiable {
         fileFocus = nil
         scrollCentered = true
         scrollTarget = items.first?.id
+    }
+
+    /// Opens the previous/next file of the list the open diff came from. False when no list applies.
+    @discardableResult
+    func moveFileFocus(_ delta: Int) -> Bool {
+        guard let current = fileFocus, let index = fileOrder.firstIndex(of: current) else { return false }
+        let next = min(max(index + delta, 0), fileOrder.count - 1)
+        if next != index { fileFocus = fileOrder[next] }
+        return true
     }
 
     /// Moves selection one row up or down in the graph (keyboard navigation).

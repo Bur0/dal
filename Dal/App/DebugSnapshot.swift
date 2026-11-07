@@ -75,6 +75,8 @@ enum DebugSnapshot {
                 }
             case "conflictpick":
                 store?.debugConflictPick = arg
+            case "filemove":
+                if let delta = Int(arg) { store?.moveFileFocus(delta) }
             case "tab":
                 let app = AppState.shared
                 if let i = Int(arg), i < app.tabs.count { app.select(app.tabs[i]) }

@@ -39,6 +39,11 @@ struct DiffView: View {
         .focused($focused)
         .onAppear { focused = true }
         .onKeyPress(.escape) { store.fileFocus = nil; return .handled }
+        // ↑/↓ walk through the files in the right panel, like the graph rows.
+        .onKeyPress(.upArrow) { store.moveFileFocus(-1) ? .handled : .ignored }
+        .onKeyPress(.downArrow) { store.moveFileFocus(1) ? .handled : .ignored }
+        .onKeyPress(.home) { store.moveFileFocus(-store.fileOrder.count) ? .handled : .ignored }
+        .onKeyPress(.end) { store.moveFileFocus(store.fileOrder.count) ? .handled : .ignored }
     }
 
     private func load(reset: Bool) async {

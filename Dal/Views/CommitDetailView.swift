@@ -11,19 +11,28 @@ struct CommitDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    shaBar
-                    message
-                    people
-                    actions
-                    Divider()
-                    filesHeader
-                    files
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 14) {
+                        shaBar
+                        message
+                        people
+                        actions
+                        Divider()
+                        filesHeader
+                        files
+                    }
+                    .padding(16)
                 }
-                .padding(16)
+                .onChange(of: store.fileFocus) { _, focus in
+                    guard let focus else { return }
+                    withAnimation(.easeOut(duration: 0.12)) { proxy.scrollTo(focus) }
+                }
             }
         }
+        .onChange(of: changes) { _, _ in updateFileOrder() }
+        .onChange(of: treeMode) { _, _ in updateFileOrder() }
+        .onAppear(perform: updateFileOrder)
         .task(id: commit.sha) {
             loading = true
             do {
@@ -197,6 +206,16 @@ struct CommitDetailView: View {
         }
     }
 
+    private func focus(_ change: FileChange) -> FileFocus {
+        .commit(sha: commit.sha, parent: commit.parents.first, change: change)
+    }
+
+    /// ↑/↓ in a diff follow the files as listed (grouped by folder in tree mode).
+    private func updateFileOrder() {
+        let ordered = treeMode ? groupedByDirectory.flatMap(\.1) : changes
+        store.fileOrder = ordered.map(focus)
+    }
+
     private var groupedByDirectory: [(String, [FileChange])] {
         let groups = Dictionary(grouping: changes) { $0.directory }
         return groups.keys.sorted().map { ($0, groups[$0]!) }
@@ -208,6 +227,7 @@ struct CommitDetailView: View {
         return FileRow(change: display, selected: store.fileFocus == focus) {
             store.fileFocus = focus
         }
+        .id(focus)
         .contextMenu {
             Button("Open File") { store.openFile(change.path) }
             Button("Reveal in Finder") { store.revealInFinder(change.path) }
@@ -243,6 +263,7 @@ struct StashDetailView: View {
                     ForEach(changes) { change in
                         let focus = FileFocus.commit(sha: stash.sha, parent: stash.sha + "^1", change: change)
                         FileRow(change: change, selected: store.fileFocus == focus) { store.fileFocus = focus }
+                            .id(focus)
                     }
                 }
                 .padding(.horizontal, -10)
@@ -253,6 +274,7 @@ struct StashDetailView: View {
         }
         .task(id: stash.sha) {
             changes = (try? await store.git.changes(sha: stash.sha, parent: stash.sha + "^1")) ?? []
+            store.fileOrder = changes.map { .commit(sha: stash.sha, parent: stash.sha + "^1", change: $0) }
         }
     }
 }
