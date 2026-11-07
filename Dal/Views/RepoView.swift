@@ -143,7 +143,7 @@ struct RepoToolbar: View {
         .padding(.horizontal, 12)
         .frame(height: 52)
         .frame(maxWidth: .infinity)
-        .background(.bar)
+        .background(Theme.chrome)
         .animation(.easeOut(duration: 0.15), value: store.busy)
     }
 

@@ -131,7 +131,7 @@ struct TabBar: View {
         }
         .frame(height: 38)
         .background(WindowDragArea())
-        .background(.bar)
+        .background(Theme.chrome)
     }
 }
 

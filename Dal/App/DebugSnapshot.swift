@@ -59,6 +59,18 @@ enum DebugSnapshot {
             case "collapse":
                 let app = AppState.shared
                 if let i = Int(arg), i < app.groups.count { app.toggleCollapsed(app.groups[i]) }
+            case "dumpeffects":
+                // Lists translucent views that blend with the desktop (invisible in snapshots).
+                var found: [String] = []
+                func walk(_ view: NSView) {
+                    if let effect = view as? NSVisualEffectView, effect.blendingMode == .behindWindow, !effect.isHidden,
+                       effect.alphaValue > 0, effect.frame.width > 1 {
+                        found.append("\(effect.material.rawValue) \(NSStringFromRect(effect.convert(effect.bounds, to: nil)))")
+                    }
+                    view.subviews.forEach(walk)
+                }
+                if let root = NSApp.windows.first(where: { $0.isVisible })?.contentView?.superview { walk(root) }
+                try? found.joined(separator: "\n").write(toFile: arg, atomically: true, encoding: .utf8)
             case "dumpmenu":
                 let lines = NSApp.mainMenu?.items.flatMap { top in
                     (top.submenu?.items ?? []).map { "\(top.title) > \($0.title) [\($0.keyEquivalentModifierMask.rawValue) \($0.keyEquivalent)]" }

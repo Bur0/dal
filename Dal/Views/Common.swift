@@ -39,6 +39,12 @@ enum Theme {
     static let separator = Color(nsColor: .separatorColor)
     static let panel = Color(nsColor: .controlBackgroundColor)
     static let window = Color(nsColor: .windowBackgroundColor)
+    /// Tab bar and toolbar: opaque (materials there pick up the desktop colour).
+    static let chrome = Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            ? NSColor(srgbRed: 0.145, green: 0.145, blue: 0.155, alpha: 1)
+            : NSColor(srgbRed: 0.925, green: 0.925, blue: 0.935, alpha: 1)
+    })
     static let subtleFill = Color.primary.opacity(0.05)
     static let hoverFill = Color.primary.opacity(0.06)
 }
