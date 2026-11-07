@@ -22,8 +22,8 @@ switchable Git identities. Built with SwiftUI on top of the `git` you already ha
   **drag a branch onto another** to merge or rebase.
 - **History editing** — merge, rebase, cherry-pick, revert, reset (soft/mixed/hard), tags.
 - **Undo / Redo** for commits, checkouts, branch create/delete, merges, rebases, pulls and resets.
-- **Conflict resolver** — pick current / incoming / both per conflict, or take a whole side;
-  Continue / Abort banner for merges, rebases, cherry-picks and reverts.
+- **Merge tool** — Current and Incoming side by side, pick whole conflicts or single lines, see the common
+  ancestor, live output you can edit by hand; Continue / Abort banner for merges, rebases, cherry-picks and reverts.
 - **Stashes, tags, worktrees** in the sidebar.
 - **GitHub** (via the [GitHub CLI](https://cli.github.com)) — open pull requests and issues in the sidebar,
   create a PR (pushes the branch first), check out a PR.
@@ -37,18 +37,69 @@ switchable Git identities. Built with SwiftUI on top of the `git` you already ha
 
 ## Install
 
-1. Download `Dal-x.y.z.zip` from [Releases](https://github.com/Bur0/dal-releases/releases) and move `Dal.app` to
-   `/Applications`.
-2. Dal isn't notarized yet, so the first launch needs one of:
-   - right-click `Dal.app` → **Open** → **Open**, or
-   - `xattr -dr com.apple.quarantine /Applications/Dal.app`
+**Requirements:** macOS 14 Sonoma or later, and Git. If `git --version` in Terminal asks you to install
+the Command Line Tools, accept (or `brew install git`). For pull requests and issues you also need the
+GitHub CLI: `brew install gh && gh auth login`.
 
-After that, Dal checks for updates daily (or **Dal → Check for Updates…**).
+### Option A — one command in Terminal (recommended)
 
-Requires macOS 14 Sonoma or later and Git (Xcode Command Line Tools or Homebrew).
-For pull requests/issues, install and log in to the GitHub CLI: `brew install gh && gh auth login`.
+Downloads the latest release, puts it in `/Applications` and opens it:
 
-Open a repository from the command line: `open -a Dal .`
+```bash
+url=$(curl -fsSL https://api.github.com/repos/Bur0/dal-releases/releases/latest | grep -o 'https://[^"]*/Dal-[^"]*\.zip' | head -1) && curl -fsSL "$url" -o /tmp/Dal.zip && ditto -x -k /tmp/Dal.zip /Applications && rm /tmp/Dal.zip && open /Applications/Dal.app
+```
+
+A download made with `curl` isn't quarantined, so macOS opens it without the warning below.
+
+### Option B — download in the browser
+
+1. Open [the latest release](https://github.com/Bur0/dal-releases/releases/latest) and download `Dal-x.y.z.zip`.
+2. Double-click the zip in Downloads, then drag **Dal.app** into **Applications**.
+3. Open Dal. Because it isn't notarized by Apple yet, macOS stops the first launch:
+   - **macOS 15 Sequoia and later:** you'll see *"Apple could not verify 'Dal' is free of malware…"*.
+     Click **Done**, open **System Settings → Privacy & Security**, scroll down to *"Dal was blocked…"*
+     and click **Open Anyway**, then confirm with your password.
+   - **macOS 14 Sonoma:** right-click **Dal.app** → **Open** → **Open**.
+   - Or skip the dialogs with Terminal: `xattr -dr com.apple.quarantine /Applications/Dal.app`
+
+   This is needed only once.
+
+### First steps
+
+- **Open a repository:** drag a folder onto the welcome screen, use **File → Open Repository…** (`⌘O`) or **Clone Repository…** (`⇧⌘O`),
+  or from Terminal: `open -a Dal ~/path/to/repo`.
+- **Your identity:** commits use your normal Git name/email. To switch between accounts (e.g. personal and
+  work), add profiles in **Dal → Settings → Profiles** and pick one from the tab bar.
+- **A repository with its own Git hooks or filters** opens in *Restricted mode* until you click
+  **Trust Repository** — Dal won't run programs from a repo you just cloned.
+
+### Updates
+
+Dal checks for a new version every hour (and when you switch back to it), downloads it in the background
+and shows **Update ready · Restart Dal** in the tab bar. Click it to restart into the new version, or just
+keep working — it installs the next time you quit. You can also use **Dal → Check for Updates…**.
+The version you're running is shown in the tab bar.
+
+### Uninstall
+
+Quit Dal, move `/Applications/Dal.app` to the Bin, and optionally remove its settings:
+
+```bash
+defaults delete com.burakalpkara.dal; rm -rf ~/Library/Caches/com.burakalpkara.dal
+```
+
+### Kurulum (Türkçe özet)
+
+1. **En kolayı:** Terminal'e yukarıdaki *Option A* komutunu yapıştır; Dal indirilir, Uygulamalar'a
+   kopyalanır ve açılır.
+2. **Tarayıcıdan:** [son sürümdeki](https://github.com/Bur0/dal-releases/releases/latest) `Dal-x.y.z.zip`'i indir,
+   açılan **Dal.app**'i **Uygulamalar** klasörüne sürükle. İlk açılışta macOS uyarı verir (Apple onayı yok):
+   macOS 15 ve sonrasında **Sistem Ayarları → Gizlilik ve Güvenlik → Yine de Aç**; macOS 14'te sağ tık → **Aç**.
+   Ya da Terminal'de: `xattr -dr com.apple.quarantine /Applications/Dal.app`
+3. Sonrası otomatik: yeni sürüm çıkınca sekme çubuğunda **Update ready · Restart Dal** görünür.
+
+Gerekenler: macOS 14+, Git (ilk `git` komutunda Command Line Tools kurulumunu kabul et). Pull request'ler için
+`brew install gh && gh auth login`.
 
 ## Keyboard shortcuts
 
@@ -111,8 +162,7 @@ Generate the key pair once with Sparkle's `generate_keys` and put the public key
 ## Privacy
 
 Dal talks to the network only for: your Git remotes, GitHub via `gh`, the update feed on GitHub
-(`Bur0/dal-releases`), and
-avatars (an MD5 hash of each author's email is sent to Gravatar; turn it off in Settings).
+(`Bur0/dal-releases`), and avatars (a SHA-256 hash of each author's email is sent to Gravatar; turn it off in Settings).
 
 ## License
 
