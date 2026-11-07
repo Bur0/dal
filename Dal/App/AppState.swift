@@ -306,7 +306,9 @@ final class AppState {
     func clone(url remote: String, into parent: URL, name: String) async -> String? {
         let result: Shell.Result
         do {
-            result = try await Shell.run("git", ["clone", remote, name], cwd: parent)
+            // Use the active profile so private repos clone with its SSH key / GitHub account.
+            result = try await Shell.run("git", ["clone", "--", remote, name], cwd: parent,
+                                         env: ProfileStore.shared.environment(for: ""))
         } catch {
             return error.localizedDescription
         }
