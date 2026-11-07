@@ -317,6 +317,15 @@ struct ToolbarButton: View {
 // MARK: Clicks
 
 extension View {
+    /// Hand cursor over clickable rows (macOS 15+ API; older systems keep the arrow).
+    @ViewBuilder func pointingHandCursor() -> some View {
+        if #available(macOS 15.0, *) {
+            self.pointerStyle(.link)
+        } else {
+            self
+        }
+    }
+
     /// Single and double click on one gesture. Unlike stacking `onTapGesture(count: 2)` over
     /// `onTapGesture`, the single click fires immediately (no double-click delay) and the
     /// double click isn't swallowed by an inner tap handler.

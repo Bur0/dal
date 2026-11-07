@@ -150,6 +150,8 @@ final class RepoStore: Identifiable {
     var items: [GraphItem] = []
     @ObservationIgnored var commitIndex: [String: Int] = [:]
     @ObservationIgnored var itemIndex: [String: Int] = [:]
+    /// Lane colour → the branch whose tip starts that lane.
+    @ObservationIgnored var laneOwners: [Int: RefBadge] = [:]
     var laneCount = 1
     var refs: [Ref] = []
     var badges: [String: [RefBadge]] = [:]
@@ -177,6 +179,7 @@ final class RepoStore: Identifiable {
     #if DEBUG
     /// Debug snapshots can't hover; this forces one row's branch list open.
     var debugExpandedRefs: String?
+    var debugHoveredRow: String?
     #endif
     var searchText = "" {
         didSet { if searchText != oldValue { scheduleSearch() } }
@@ -454,7 +457,15 @@ final class RepoStore: Identifiable {
         for (i, commit) in commits.enumerated() {
             result.append(GraphItem(id: commit.sha, commit: commit, row: layout.rows[i + offset]))
         }
+        // Each lane colour is one run of first-parent history starting at its tip, so the tip's
+        // branch "owns" every commit drawn in that colour (shown faintly when you hover a row).
+        var owners: [Int: RefBadge] = [:]
+        for item in result {
+            guard owners[item.row.color] == nil, let sha = item.commit?.sha, let refs = badges[sha], !refs.isEmpty else { continue }
+            owners[item.row.color] = refs.first { $0.local != nil } ?? refs.first
+        }
         items = result
+        laneOwners = owners
         itemIndex = Dictionary(result.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { a, _ in a })
         laneCount = layout.width
     }

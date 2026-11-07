@@ -183,7 +183,7 @@ private struct GraphRowView: View {
         HStack(spacing: 0) {
             refCell
                 .frame(width: columns.refWidth, alignment: .leading)
-            GraphCell(row: item.row, commit: item.commit, isWIP: item.isWIP, hasRefs: !badges.isEmpty, width: columns.graphWidth)
+            GraphCell(row: item.row, commit: item.commit, isWIP: item.isWIP, connector: connectorOpacity, width: columns.graphWidth)
             messageCell
                 .padding(.leading, 10)
                 .padding(.trailing, 14)
@@ -224,6 +224,7 @@ private struct GraphRowView: View {
             if let commit = item.commit { store.select(commit: commit.sha) } else { store.selection = .wip; store.fileFocus = nil }
         }
         .onHover { hovering = $0 }
+        .pointingHandCursor()
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityText)
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
@@ -246,6 +247,14 @@ private struct GraphRowView: View {
         guard let first = badges.first else { return false }
         let approxWidth = CGFloat(first.name.count) * 7 + 44
         return badges.count > 1 || approxWidth > columns.refWidth - 16
+    }
+
+    private var isHovered: Bool {
+        #if DEBUG
+        return hovering || store.debugHoveredRow == item.id
+        #else
+        return hovering
+        #endif
     }
 
     private var debugForcedOpen: Bool {
@@ -301,6 +310,7 @@ private struct GraphRowView: View {
         } else if let first = badges.first {
             HStack(spacing: 4) {
                 BadgeItem(store: store, badge: first, color: laneColor)
+                    .layoutPriority(2)   // the name wins space over the connector line
                 if badges.count > 1 {
                     Menu {
                         ForEach(badges.dropFirst()) { badge in
@@ -317,9 +327,10 @@ private struct GraphRowView: View {
                     .menuStyle(.borderlessButton)
                     .menuIndicator(.hidden)
                     .fixedSize()
+                    .layoutPriority(2)
                     .help(badges.dropFirst().map(\.name).joined(separator: "\n"))
                 }
-                Spacer(minLength: 0)
+                connectorLine
             }
             .padding(.leading, 8)
             .frame(maxHeight: .infinity)
@@ -332,9 +343,35 @@ private struct GraphRowView: View {
                         .transition(.opacity)
                 }
             }
+        } else if isHovered, !item.isWIP, let owner = store.laneOwners[item.row.color] {
+            // Which branch this commit belongs to, shown faintly like GitKraken.
+            HStack(spacing: 4) {
+                RefBadgeView(badge: owner, color: laneColor)
+                    .opacity(0.5)
+                    .layoutPriority(2)
+                connectorLine
+            }
+            .padding(.leading, 8)
+            .frame(maxHeight: .infinity)
+            .allowsHitTesting(false)
+            .transition(.opacity)
         } else {
             Color.clear
         }
+    }
+
+    /// From the end of the label to the edge of the column; GraphCell carries it on to the node.
+    private var connectorLine: some View {
+        Rectangle()
+            .fill(laneColor.opacity(connectorOpacity))
+            .frame(height: 2)
+            .frame(minWidth: 6, maxWidth: .infinity)
+    }
+
+    private var connectorOpacity: Double {
+        if let first = badges.first { return first.isHead ? 1 : 0.7 }
+        if isHovered, !item.isWIP, store.laneOwners[item.row.color] != nil { return 0.3 }
+        return 0
     }
 
     @ViewBuilder private var messageCell: some View {
@@ -433,7 +470,8 @@ struct GraphCell: View {
     let row: GraphRow
     let commit: Commit?
     let isWIP: Bool
-    let hasRefs: Bool
+    /// Opacity of the line from the branch label to this row's node (0 = none).
+    let connector: Double
     let width: CGFloat
 
     static func x(_ lane: Int) -> CGFloat { 12 + CGFloat(lane) * Theme.laneWidth }
@@ -445,11 +483,13 @@ struct GraphCell: View {
         ZStack(alignment: .topLeading) {
             Canvas { context, size in
                 let mid = size.height / 2
-                if hasRefs {
-                    var connector = Path()
-                    connector.move(to: CGPoint(x: 0, y: mid))
-                    connector.addLine(to: CGPoint(x: nodeX, y: mid))
-                    context.stroke(connector, with: .color(color.opacity(0.55)), lineWidth: 1.5)
+                if connector > 0 {
+                    // Continues the line drawn after the label in the branch column, so label
+                    // and node read as one connected thing.
+                    var path = Path()
+                    path.move(to: CGPoint(x: 0, y: mid))
+                    path.addLine(to: CGPoint(x: nodeX, y: mid))
+                    context.stroke(path, with: .color(color.opacity(connector)), lineWidth: 2)
                 }
                 for line in row.lines {
                     var path = Path()
