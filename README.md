@@ -37,7 +37,7 @@ switchable Git identities. Built with SwiftUI on top of the `git` you already ha
 
 ## Install
 
-1. Download `Dal-x.y.z.zip` from [Releases](https://github.com/Bur0/dal/releases) and move `Dal.app` to
+1. Download `Dal-x.y.z.zip` from [Releases](https://github.com/Bur0/dal-releases/releases) and move `Dal.app` to
    `/Applications`.
 2. Dal isn't notarized yet, so the first launch needs one of:
    - right-click `Dal.app` → **Open** → **Open**, or
@@ -73,7 +73,7 @@ Open a repository from the command line: `open -a Dal .`
 
 ```bash
 brew install xcodegen
-git clone https://github.com/Bur0/dal.git && cd dal
+git clone https://github.com/Bur0/dal.git && cd dal   # private repo
 scripts/bootstrap.sh          # generates Dal.xcodeproj and opens Xcode
 ```
 
@@ -100,14 +100,18 @@ command line (hooks, credential helpers, signing, LFS).
 scripts/release.sh 0.2.0 "- What changed"
 ```
 
-The script bumps the version in `project.yml`, builds a Release app, signs the zip with the Sparkle
-EdDSA key from the login keychain, publishes a GitHub release, then adds the entry to `appcast.xml`
-(which installed copies poll). Generate the key pair once with Sparkle's `generate_keys` and put the
-public key in `project.yml` (`SUPublicEDKey`).
+The script bumps the version in `project.yml`, builds a Release app and signs the zip with the Sparkle
+EdDSA key from the login keychain. The source repo is private, so the download and the update feed
+are published to the public [Bur0/dal-releases](https://github.com/Bur0/dal-releases) repo (a GitHub
+release with the zip, plus `appcast.xml`, which installed copies poll). It expects a checkout of that
+repo next to this one (`../dal-releases`, cloned automatically) or at `$DAL_RELEASES_DIR`.
+Generate the key pair once with Sparkle's `generate_keys` and put the public key in `project.yml`
+(`SUPublicEDKey`).
 
 ## Privacy
 
-Dal talks to the network only for: your Git remotes, GitHub via `gh`, the update feed on GitHub, and
+Dal talks to the network only for: your Git remotes, GitHub via `gh`, the update feed on GitHub
+(`Bur0/dal-releases`), and
 avatars (an MD5 hash of each author's email is sent to Gravatar; turn it off in Settings).
 
 ## License

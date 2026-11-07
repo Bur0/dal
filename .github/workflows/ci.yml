@@ -1,9 +1,10 @@
 name: CI
 
+# The repository is private, where macOS runner minutes count 10x against the free quota,
+# so CI runs on pull requests and on demand (Actions → CI → Run workflow) only.
 on:
-  push:
-    branches: [main]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   build:

@@ -35,7 +35,7 @@ targets:
         LSApplicationCategoryType: public.app-category.developer-tools
         LSMinimumSystemVersion: "14.0"
         NSHumanReadableCopyright: "© 2026 Burak Alp Kara. MIT License."
-        SUFeedURL: https://raw.githubusercontent.com/Bur0/dal/main/appcast.xml
+        SUFeedURL: https://raw.githubusercontent.com/Bur0/dal-releases/main/appcast.xml
         SUPublicEDKey: 8eWChZy2gKLttvejAfTkOxqTVKFWiqr+oE8XDCwJRss=
         SUEnableAutomaticChecks: true
         SUScheduledCheckInterval: 86400
