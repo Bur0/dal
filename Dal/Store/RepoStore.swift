@@ -182,6 +182,8 @@ final class RepoStore: Identifiable {
     /// Debug snapshots can't hover; this forces one row's branch list open.
     var debugExpandedRefs: String?
     var debugHoveredRow: String?
+    /// Debug snapshots: "1:both" picks both sides of conflict 1 in the merge tool.
+    var debugConflictPick: String?
     #endif
     var searchText = "" {
         didSet { if searchText != oldValue { scheduleSearch() } }

@@ -585,11 +585,14 @@ extension RepoStore {
 
     // MARK: Conflicts
 
+    /// Writes the resolved file, stages it and moves on to the next conflicted file (if any).
     func resolveConflict(_ change: FileChange, content: String) {
-        run("Resolve", success: "Resolved \(change.fileName)") { [self] in
-            try content.write(to: url.appendingPathComponent(change.path), atomically: true, encoding: .utf8)
+        let next = status.conflicted.first { $0.path != change.path }
+        run("Resolve", success: next == nil ? "All conflicts resolved — continue when ready" : "Resolved \(change.fileName)") { [self] in
+            // Written in place (not atomically) so the file keeps its permissions, e.g. the executable bit.
+            try Data(content.utf8).write(to: url.appendingPathComponent(change.path))
             try await git.run(["add", "--", change.path])
-            fileFocus = nil
+            fileFocus = next.map { .conflict($0) }
         }
     }
 
