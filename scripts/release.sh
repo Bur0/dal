@@ -39,9 +39,9 @@ sed -i '' "s/CURRENT_PROJECT_VERSION: \".*\"/CURRENT_PROJECT_VERSION: \"$BUILD\"
 echo "▸ Building Dal $VERSION ($BUILD)"
 xcodegen generate >/dev/null
 xcodebuild -project Dal.xcodeproj -scheme Dal -configuration Release \
-  -derivedDataPath build/release clean build | tail -3
+  -derivedDataPath build/dist clean build | tail -3
 
-APP="build/release/Build/Products/Release/Dal.app"
+APP="build/dist/Build/Products/Release/Dal.app"
 codesign --force --deep --sign - "$APP"   # ad-hoc; see README for Gatekeeper notes
 ZIP="build/Dal-$VERSION.zip"
 rm -f "$ZIP"
