@@ -85,6 +85,12 @@ struct TabBar: View {
         }
     }
 
+    /// A group chip is its own marker; a line before it would just add noise.
+    private func isChip(_ entry: Entry) -> Bool {
+        if case .chip = entry { return true }
+        return false
+    }
+
     private func isSelected(_ entry: Entry) -> Bool {
         if case .tab(let store, _) = entry { return store.id == app.selectedID }
         return false
@@ -99,7 +105,7 @@ struct TabBar: View {
                         let entries = self.entries
                         ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
                             if index > 0 {
-                                TabSeparator(hidden: isSelected(entries[index - 1]) || isSelected(entry))
+                                TabSeparator(hidden: isSelected(entries[index - 1]) || isSelected(entry) || isChip(entry) || isChip(entries[index - 1]))
                             }
                             switch entry {
                             case .tab(let store, let color):
@@ -121,7 +127,7 @@ struct TabBar: View {
                         .foregroundStyle(Theme.secondaryText)
                         .help("New tab (⌘T)")
                     }
-                    .padding(.vertical, 5)
+                    .padding(.vertical, 4)
                     .background(GeometryReader { geo in
                         Color.clear.preference(key: TabsWidthKey.self, value: geo.size.width)
                     })
@@ -156,7 +162,7 @@ struct TabBar: View {
             ProfileMenu()
                 .padding(.horizontal, 10)
         }
-        .frame(height: 38)
+        .frame(height: 40)
         .background(WindowDragArea())
         .background(Theme.chrome)
     }
@@ -248,7 +254,7 @@ private struct GroupChip: View {
                 Circle().fill(color).frame(width: 10, height: 10)
             } else {
                 Text(group.name)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 12.5, weight: .semibold))
                     .lineLimit(1)
             }
             if group.collapsed {
@@ -259,9 +265,9 @@ private struct GroupChip: View {
             }
         }
         .foregroundStyle(Theme.onLane(group.color))
-        .padding(.horizontal, 9)
-        .frame(height: 22)
-        .background(RoundedRectangle(cornerRadius: 6).fill(color.opacity(hovering ? 1 : 0.88)))
+        .padding(.horizontal, 10)
+        .frame(height: 24)
+        .background(RoundedRectangle(cornerRadius: 7).fill(color.opacity(hovering ? 1 : 0.88)))
         .padding(.horizontal, 3)
         .contentShape(Rectangle())
         .onTapGesture { withAnimation(.easeOut(duration: 0.18)) { app.toggleCollapsed(group) } }
@@ -314,12 +320,13 @@ private struct TabItem: View {
     @State private var dropTarget = false
 
     var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "folder")
-                .font(.system(size: 11))
+        HStack(spacing: 7) {
+            Image(systemName: selected ? "folder.fill" : "folder")
+                .font(.system(size: 12))
                 .foregroundStyle(selected ? Color.accentColor : Theme.secondaryText)
             Text(store.name)
-                .font(.system(size: 12, weight: selected ? .semibold : .regular))
+                .font(.system(size: 13, weight: selected ? .semibold : .regular))
+                .foregroundStyle(selected ? Color.primary : Theme.secondaryText)
                 .lineLimit(1)
             if store.busy != nil {
                 ProgressView().controlSize(.mini)
@@ -328,8 +335,8 @@ private struct TabItem: View {
                 app.close(store)
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 8.5, weight: .bold))
-                    .frame(width: 16, height: 16)
+                    .font(.system(size: 9, weight: .bold))
+                    .frame(width: 18, height: 18)
                     .background(Circle().fill(hovering ? Theme.hoverFill : .clear))
             }
             .buttonStyle(.plain)
@@ -338,16 +345,24 @@ private struct TabItem: View {
             .help("Close tab (⌘W)")
             .accessibilityLabel("Close \(store.name)")
         }
-        .padding(.leading, 10)
-        .padding(.trailing, 6)
-        .frame(height: 28)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(selected ? Color.primary.opacity(0.09) : hovering ? Theme.hoverFill : .clear)
-        )
+        .padding(.leading, 12)
+        .padding(.trailing, 7)
+        .frame(height: 30)
+        .background {
+            // The open project is a raised card; the others stay flat until hovered.
+            if selected {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Theme.tabActive)
+                    .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.primary.opacity(0.10)))
+                    .shadow(color: .black.opacity(0.18), radius: 1.5, y: 0.5)
+            } else if hovering {
+                RoundedRectangle(cornerRadius: 8).fill(Theme.hoverFill)
+            }
+        }
         .overlay(alignment: .bottom) {
-            if let groupColor {
-                RoundedRectangle(cornerRadius: 1).fill(groupColor).frame(height: 2).padding(.horizontal, 4)
+            // The group's colour marks only the open project.
+            if selected, let groupColor {
+                Capsule().fill(groupColor).frame(height: 2.5).padding(.horizontal, 12).padding(.bottom, 1)
             }
         }
         .contentShape(Rectangle())

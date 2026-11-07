@@ -75,6 +75,9 @@ enum DebugSnapshot {
                 }
             case "conflictpick":
                 store?.debugConflictPick = arg
+            case "tab":
+                let app = AppState.shared
+                if let i = Int(arg), i < app.tabs.count { app.select(app.tabs[i]) }
             case "open":
                 AppState.shared.open(URL(fileURLWithPath: arg))
             case "welcome":

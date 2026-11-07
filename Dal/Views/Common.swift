@@ -62,6 +62,8 @@ enum Theme {
             ? NSColor(srgbRed: 0.145, green: 0.145, blue: 0.155, alpha: 1)
             : NSColor(srgbRed: 0.925, green: 0.925, blue: 0.935, alpha: 1)
     })
+    /// The open tab: one step lighter than the chrome it sits on.
+    static let tabActive = dynamic(light: Color(hex: 0xFFFFFF), dark: Color(hex: 0x3A3A3F))
     static let subtleFill = Color.primary.opacity(0.05)
     static let hoverFill = Color.primary.opacity(0.06)
 
