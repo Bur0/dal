@@ -54,14 +54,14 @@ struct SidebarView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 5) {
-                Image(systemName: "line.3.horizontal.decrease").font(.system(size: 11)).foregroundStyle(.secondary)
+                Image(systemName: "line.3.horizontal.decrease").font(.system(size: 11)).foregroundStyle(Theme.secondaryText)
                 TextField("Filter", text: $filter)
                     .textFieldStyle(.plain)
                     .font(.system(size: 12))
                     .onExitCommand { filter = "" }
                 if !filter.isEmpty {
                     Button { filter = "" } label: { Image(systemName: "xmark.circle.fill").font(.system(size: 11)) }
-                        .buttonStyle(.plain).foregroundStyle(.tertiary)
+                        .buttonStyle(.plain).foregroundStyle(Theme.mutedText)
                         .accessibilityLabel("Clear filter")
                 }
             }
@@ -205,26 +205,26 @@ struct SidebarView: View {
         HStack(spacing: 6) {
             Text(title).font(.system(size: 11, weight: .semibold))
             if count > 0 {
-                Text("\(count)").font(.system(size: 11).monospacedDigit()).foregroundStyle(.tertiary)
+                Text("\(count)").font(.system(size: 11).monospacedDigit()).foregroundStyle(Theme.mutedText)
             }
         }
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Theme.secondaryText)
     }
 
     private func emptyRow(_ text: String) -> some View {
-        Text(text).font(.system(size: 11)).foregroundStyle(.tertiary).padding(.leading, 4)
+        Text(text).font(.system(size: 11)).foregroundStyle(Theme.mutedText).padding(.leading, 4)
     }
 
     private func githubHint(_ error: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("GitHub isn't connected").font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
+            Text("GitHub isn't connected").font(.system(size: 11, weight: .medium)).foregroundStyle(Theme.secondaryText)
             Text(error.contains("auth login") || error.contains("not logged")
                  ? "Run `gh auth login` in Terminal, then reload."
                  : error.contains("No such file") || error.contains("not found")
                  ? "Install the GitHub CLI: `brew install gh`"
                  : error)
                 .font(.system(size: 11))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(Theme.mutedText)
                 .lineLimit(4)
                 .textSelection(.enabled)
         }
@@ -250,7 +250,7 @@ private struct SidebarItem: View {
             Image(systemName: symbol)
                 .font(.system(size: 11))
                 .frame(width: 14)
-                .foregroundStyle(selected ? Color.accentColor : .secondary)
+                .foregroundStyle(selected ? Color.accentColor : Theme.secondaryText)
             Text(title)
                 .font(.system(size: 12, weight: bold ? .semibold : .regular))
                 .lineLimit(1)
@@ -258,7 +258,7 @@ private struct SidebarItem: View {
             Spacer(minLength: 2)
             if let trailing { trailing }
             if let detail {
-                Text(detail).font(.system(size: 11)).foregroundStyle(.tertiary).lineLimit(1)
+                Text(detail).font(.system(size: 11)).foregroundStyle(Theme.mutedText).lineLimit(1)
             }
         }
         .padding(.horizontal, 4)
@@ -300,7 +300,7 @@ private struct BranchRow: View {
         } else {
             Label(node.name, systemImage: "folder")
                 .font(.system(size: 12))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.secondaryText)
         }
     }
 }
@@ -321,7 +321,7 @@ private struct TrackingPill: View {
         }
         .font(.system(size: 11, weight: .semibold))
         .monospacedDigit()
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Theme.secondaryText)
     }
 }
 
@@ -355,13 +355,13 @@ private struct PullRequestRow: View {
             Image(systemName: pr.isDraft ? "circle.dashed" : "arrow.triangle.pull")
                 .font(.system(size: 11))
                 .frame(width: 14)
-                .foregroundStyle(pr.isDraft ? Color.secondary : Theme.added)
+                .foregroundStyle(pr.isDraft ? Theme.secondaryText : Theme.added)
                 .padding(.top, 1)
             VStack(alignment: .leading, spacing: 1) {
                 Text(pr.title).font(.system(size: 12)).lineLimit(2)
                 Text("#\(pr.number) · \(pr.headRefName) → \(pr.baseRefName)")
                     .font(.system(size: 11))
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(Theme.mutedText)
                     .lineLimit(1)
                     .truncationMode(.middle)
             }

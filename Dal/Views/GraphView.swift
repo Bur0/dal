@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 
 struct GraphView: View {
     @Bindable var store: RepoStore
-    @AppStorage("refColumnWidth") private var refWidth: Double = 180
+    @AppStorage("refColumnWidth") private var refWidth: Double = 200
     @AppStorage("graphColumnWidth") private var graphMax: Double = 170
     @FocusState private var focused: Bool
 
@@ -27,7 +27,7 @@ struct GraphView: View {
                         if store.hasMore {
                             HStack(spacing: 8) {
                                 ProgressView().controlSize(.small)
-                                Text("Loading more commits…").font(.system(size: 11)).foregroundStyle(.secondary)
+                                Text("Loading more commits…").font(.system(size: 11)).foregroundStyle(Theme.secondaryText)
                             }
                             .frame(height: 40)
                             .onAppear { store.loadMore() }
@@ -96,7 +96,7 @@ struct GraphView: View {
         }
         .lineLimit(1)
         .font(.system(size: 11, weight: .medium))
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Theme.secondaryText)
         .frame(height: 28)
         .background(.bar)
     }
@@ -160,6 +160,8 @@ private struct GraphRowView: View {
 
     @State private var hovering = false
     @State private var dropTargeted = false
+    @State private var refsExpanded = false
+    @State private var refsHoverTask: Task<Void, Never>?
 
     private var isSelected: Bool {
         switch store.selection {
@@ -190,21 +192,21 @@ private struct GraphRowView: View {
                 if columns.showAuthor {
                     Text(commit.authorName)
                         .lineLimit(1)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Theme.secondaryText)
                         .frame(width: GraphColumns.authorWidth, alignment: .leading)
                         .help(commit.authorEmail)
                 }
                 if columns.showDate {
                     Text(Formatters.relative(commit.authorDate))
                         .lineLimit(1)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Theme.secondaryText)
                         .frame(width: GraphColumns.dateWidth, alignment: .leading)
                         .help(Formatters.full.string(from: commit.authorDate))
                 }
                 if columns.showSha {
                     Text(commit.shortSha)
                         .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(Theme.mutedText)
                         .frame(width: GraphColumns.shaWidth, alignment: .leading)
                 }
             } else {
@@ -234,6 +236,36 @@ private struct GraphRowView: View {
             }
             return true
         } isTargeted: { dropTargeted = $0 && dropTargetName != nil }
+        // The expanded branch list draws over the rows below it.
+        .zIndex(refsExpanded || debugForcedOpen ? 10 : 0)
+    }
+
+    /// Hovering the branch/tag cell lists every ref on the commit, untruncated (GitKraken-style).
+    /// Worth it when there's more than one ref or the single name doesn't fit.
+    private var refsNeedExpanding: Bool {
+        guard let first = badges.first else { return false }
+        let approxWidth = CGFloat(first.name.count) * 7 + 44
+        return badges.count > 1 || approxWidth > columns.refWidth - 16
+    }
+
+    private var debugForcedOpen: Bool {
+        #if DEBUG
+        return store.debugExpandedRefs == item.id
+        #else
+        return false
+        #endif
+    }
+
+    private func hoverRefs(_ inside: Bool) {
+        refsHoverTask?.cancel()
+        guard refsNeedExpanding else { return }
+        // Short delays: no flicker when the pointer sweeps across rows, and moving from the
+        // cell into the expanded list doesn't close it.
+        refsHoverTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(inside ? 150 : 120))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.12)) { refsExpanded = inside }
+        }
     }
 
     /// Dropping a branch on a row targets that row's local branch. Remote-only rows aren't
@@ -277,7 +309,7 @@ private struct GraphRowView: View {
                     } label: {
                         Text("+\(badges.count - 1)")
                             .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Theme.secondaryText)
                             .padding(.horizontal, 4)
                             .frame(height: 17)
                             .background(RoundedRectangle(cornerRadius: 4).fill(laneColor.opacity(0.18)))
@@ -291,6 +323,15 @@ private struct GraphRowView: View {
             }
             .padding(.leading, 8)
             .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .onHover { hoverRefs($0) }
+            .overlay(alignment: .topLeading) {
+                if refsExpanded || debugForcedOpen {
+                    ExpandedRefs(store: store, badges: badges, color: laneColor, minWidth: columns.refWidth - 4)
+                        .onHover { hoverRefs($0) }
+                        .transition(.opacity)
+                }
+            }
         } else {
             Color.clear
         }
@@ -301,12 +342,12 @@ private struct GraphRowView: View {
             // One Text so truncation ends in a clean "…" instead of a stray letter of the body.
             (Text(commit.subject).fontWeight(isSelected ? .medium : .regular)
              + Text(commit.body.isEmpty ? "" : "   " + commit.body.replacingOccurrences(of: "\n", with: " "))
-                .foregroundColor(Color.secondary.opacity(0.7)))
+                .foregroundColor(Theme.mutedText))
                 .lineLimit(1)
         } else {
             HStack(spacing: 8) {
                 Text("Uncommitted changes")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.secondaryText)
                 let s = store.status
                 if !s.conflicted.isEmpty {
                     countPill("exclamationmark.triangle.fill", s.conflicted.count, Theme.conflict)
@@ -329,13 +370,42 @@ private struct GraphRowView: View {
     }
 }
 
+/// Every ref on a commit, stacked and untruncated, floating over the graph while hovered.
+/// Each label keeps its behaviour: click selects, double-click checks out, right-click menu, drag.
+private struct ExpandedRefs: View {
+    let store: RepoStore
+    let badges: [RefBadge]
+    let color: Color
+    let minWidth: CGFloat
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(badges) { badge in
+                BadgeItem(store: store, badge: badge, color: color, fullWidth: true)
+            }
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+        .frame(minWidth: minWidth, alignment: .leading)
+        .fixedSize()
+        .background(RoundedRectangle(cornerRadius: 8).fill(Theme.panel))
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.primary.opacity(0.12)))
+        .shadow(color: .black.opacity(0.25), radius: 8, y: 3)
+        .padding(.leading, 2)
+        .padding(.top, 2)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Branches and tags on this commit")
+    }
+}
+
 private struct BadgeItem: View {
     let store: RepoStore
     let badge: RefBadge
     let color: Color
+    var fullWidth = false
 
     var body: some View {
-        RefBadgeView(badge: badge, color: color)
+        RefBadgeView(badge: badge, color: color, untruncated: fullWidth)
             .onClick({ store.select(commit: badge.primary?.target ?? "") }, double: checkout)
             .contextMenu { BadgeMenu(store: store, badge: badge) }
             .accessibilityLabel("Branch \(badge.name)")

@@ -67,14 +67,14 @@ struct DiffView: View {
             ChangeIcon(kind: change.kind)
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 0) {
-                    Text(change.directory).foregroundStyle(.secondary)
+                    Text(change.directory).foregroundStyle(Theme.secondaryText)
                     Text(change.fileName).fontWeight(.semibold)
                 }
                 .font(.system(size: 13))
                 .lineLimit(1)
                 .truncationMode(.head)
                 if let old = change.oldPath {
-                    Text("renamed from \(old)").font(.system(size: 11)).foregroundStyle(.tertiary)
+                    Text("renamed from \(old)").font(.system(size: 11)).foregroundStyle(Theme.mutedText)
                 }
             }
             if let diff, !diff.isBinary {
@@ -152,7 +152,7 @@ struct DiffView: View {
         return HStack(spacing: 8) {
             Text(hunk.header)
                 .font(.system(size: 11, design: .monospaced))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.secondaryText)
                 .lineLimit(1)
             Spacer()
             if !selected.isEmpty {
@@ -178,7 +178,7 @@ struct DiffView: View {
             case .readOnly:
                 if case .working = focus, change.kind != .untracked {
                     Text("Whole file only (rename / new / deleted)")
-                        .font(.system(size: 11)).foregroundStyle(.tertiary)
+                        .font(.system(size: 11)).foregroundStyle(Theme.mutedText)
                 }
             }
         }
@@ -195,15 +195,15 @@ struct DiffView: View {
         return HStack(alignment: .top, spacing: 0) {
             Text(line.oldNumber.map(String.init) ?? "")
                 .frame(width: 44, alignment: .trailing)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(Theme.mutedText)
             Text(line.newNumber.map(String.init) ?? "")
                 .frame(width: 44, alignment: .trailing)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(Theme.mutedText)
             Text(marker(line))
                 .frame(width: 20, alignment: .center)
                 .foregroundStyle(markerColor(line))
             Text(line.kind == .noNewline ? line.text.trimmed : line.text.isEmpty ? " " : line.text)
-                .foregroundStyle(line.kind == .noNewline ? .tertiary : .primary)
+                .foregroundStyle(line.kind == .noNewline ? Theme.mutedText : Color.primary)
                 .lineLimit(wrap ? nil : 1)
                 .fixedSize(horizontal: !wrap, vertical: true)
                 .frame(maxWidth: wrap ? .infinity : nil, alignment: .leading)
@@ -260,7 +260,7 @@ struct DiffView: View {
         switch line.kind {
         case .addition: Theme.added
         case .deletion: Theme.deleted
-        default: .secondary
+        default: Theme.mutedText
         }
     }
 

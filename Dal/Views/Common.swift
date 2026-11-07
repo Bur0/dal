@@ -5,16 +5,25 @@ import CryptoKit
 // MARK: Theme
 
 enum Theme {
-    /// Lane colours: distinct hues tuned to read on both light and dark backgrounds.
+    // Every colour here is checked against WCAG on both themes: text ≥ 4.5:1, graph lines and
+    // icons ≥ 3:1. The system's .secondary/.tertiary labels miss that (tertiary is ~2.3:1 on dark,
+    // secondary ~3.9:1 on light), so text uses these tokens instead.
+
+    /// Body-level secondary text: author, dates, paths. ≥ 7:1.
+    static let secondaryText = dynamic(light: Color(hex: 0x4D4D4D), dark: Color.white.opacity(0.68))
+    /// Meta text: SHAs, counts, hints, empty states. ≥ 5:1.
+    static let mutedText = dynamic(light: Color(hex: 0x666666), dark: Color.white.opacity(0.55))
+
+    /// Lane colours, darker on light backgrounds so lines and badge borders keep ≥ 3:1.
     static let lanes: [Color] = [
-        Color(hex: 0x2F9BE0), // blue
-        Color(hex: 0x3DB46D), // green
-        Color(hex: 0xE59A2F), // amber
-        Color(hex: 0xE0534F), // red
-        Color(hex: 0x1FB5B0), // teal
-        Color(hex: 0xD45FA6), // pink
-        Color(hex: 0x8C7AE6), // violet
-        Color(hex: 0xB8A030), // olive
+        dynamic(light: Color(hex: 0x1F6FB2), dark: Color(hex: 0x2F9BE0)), // blue
+        dynamic(light: Color(hex: 0x2A8A4A), dark: Color(hex: 0x3DB46D)), // green
+        dynamic(light: Color(hex: 0xA86A00), dark: Color(hex: 0xE59A2F)), // amber
+        dynamic(light: Color(hex: 0xC23B36), dark: Color(hex: 0xE0534F)), // red
+        dynamic(light: Color(hex: 0x0F7F7B), dark: Color(hex: 0x1FB5B0)), // teal
+        dynamic(light: Color(hex: 0xB03D86), dark: Color(hex: 0xD45FA6)), // pink
+        dynamic(light: Color(hex: 0x6A55CC), dark: Color(hex: 0x8C7AE6)), // violet
+        dynamic(light: Color(hex: 0x7A6A00), dark: Color(hex: 0xB8A030)), // olive
     ]
 
     static let laneNames = ["Blue", "Green", "Amber", "Red", "Teal", "Pink", "Violet", "Olive"]
@@ -26,11 +35,12 @@ enum Theme {
 
     static func lane(_ index: Int) -> Color { lanes[((index % lanes.count) + lanes.count) % lanes.count] }
 
-    static let added = Color(hex: 0x3DB46D)
-    static let deleted = Color(hex: 0xE0534F)
-    static let modified = Color(hex: 0xE59A2F)
-    static let renamed = Color(hex: 0x2F9BE0)
-    static let conflict = Color(hex: 0xE0534F)
+    // Status colours (GitHub Primer values), legible as text on both themes.
+    static let added = dynamic(light: Color(hex: 0x1A7F37), dark: Color(hex: 0x3FB950))
+    static let deleted = dynamic(light: Color(hex: 0xCF222E), dark: Color(hex: 0xF85149))
+    static let modified = dynamic(light: Color(hex: 0x9A6700), dark: Color(hex: 0xD29922))
+    static let renamed = dynamic(light: Color(hex: 0x0969DA), dark: Color(hex: 0x58A6FF))
+    static let conflict = deleted
 
     static let rowHeight: CGFloat = 28
     static let laneWidth: CGFloat = 16
@@ -47,6 +57,13 @@ enum Theme {
     })
     static let subtleFill = Color.primary.opacity(0.05)
     static let hoverFill = Color.primary.opacity(0.06)
+
+    static func dynamic(light: Color, dark: Color) -> Color {
+        let lightNS = NSColor(light), darkNS = NSColor(dark)
+        return Color(nsColor: NSColor(name: nil) { appearance in
+            appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? darkNS : lightNS
+        })
+    }
 }
 
 extension Color {
@@ -185,7 +202,7 @@ struct AvatarView: View {
         var hash: UInt32 = 5381
         for byte in key.lowercased().utf8 { hash = (hash &<< 5) &+ hash &+ UInt32(byte) }
         let hue = Double(hash % 360) / 360
-        return Color(hue: hue, saturation: 0.45, brightness: 0.62)
+        return Color(hue: hue, saturation: 0.55, brightness: 0.45)   // white initials ≥ 4.5:1
     }
 }
 
@@ -195,6 +212,7 @@ struct RefBadgeView: View {
     let badge: RefBadge
     let color: Color
     var compact = false
+    var untruncated = false
 
     var body: some View {
         HStack(spacing: 4) {
@@ -206,19 +224,20 @@ struct RefBadgeView: View {
             Text(badge.name)
                 .lineLimit(1)
                 .truncationMode(.middle)
+                .fixedSize(horizontal: untruncated, vertical: false)
             if !compact {
                 if badge.local != nil {
-                    Image(systemName: "laptopcomputer").font(.system(size: 9)).opacity(0.85)
+                    Image(systemName: "laptopcomputer").font(.system(size: 10))
                 }
                 if !badge.remotes.isEmpty {
-                    Image(systemName: "cloud.fill").font(.system(size: 9)).opacity(0.85)
+                    Image(systemName: "cloud.fill").font(.system(size: 10))
                 }
             }
         }
-        .font(.system(size: 11, weight: badge.isHead ? .semibold : .medium))
+        .font(.system(size: 12, weight: badge.isHead ? .semibold : .medium))
         .foregroundStyle(.primary)
-        .padding(.horizontal, 6)
-        .frame(height: 19)
+        .padding(.horizontal, 7)
+        .frame(height: 20)
         .background(RoundedRectangle(cornerRadius: 4).fill(color.opacity(badge.isHead ? 0.38 : 0.22)))
         .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(color.opacity(0.75), lineWidth: 1))
         .help(helpText)
@@ -334,7 +353,7 @@ struct IconToggle: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .foregroundStyle(isOn ? .primary : .secondary)
+        .foregroundStyle(isOn ? Color.primary : Theme.secondaryText)
         .onHover { hovering = $0 }
         .help(label)
         .accessibilityLabel(label)
@@ -350,7 +369,7 @@ struct KeyCap: View {
             ForEach(Array(Self.tokens(keys).enumerated()), id: \.offset) { _, key in
                 Text(key)
                     .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.secondaryText)
                     .frame(minWidth: 18, minHeight: 18)
                     .padding(.horizontal, key.count > 1 ? 4 : 0)
                     .background(RoundedRectangle(cornerRadius: 4).fill(Color.primary.opacity(0.06)))
@@ -397,7 +416,7 @@ struct FileRow: View {
             ChangeIcon(kind: change.kind)
             HStack(spacing: 0) {
                 Text(change.directory)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.secondaryText)
                     .lineLimit(1)
                     .truncationMode(.head)
                     .layoutPriority(0)
@@ -448,11 +467,11 @@ struct SectionTitle: View {
         HStack(spacing: 6) {
             Text(title)
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.secondaryText)
             if let count {
                 Text("\(count)")
                     .font(.system(size: 11).monospacedDigit())
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(Theme.mutedText)
             }
         }
     }
@@ -466,10 +485,10 @@ struct EmptyState: View {
         VStack(spacing: 8) {
             Image(systemName: symbol)
                 .font(.system(size: 28, weight: .light))
-                .foregroundStyle(.tertiary)
-            Text(title).font(.system(size: 13, weight: .medium)).foregroundStyle(.secondary)
+                .foregroundStyle(Theme.mutedText)
+            Text(title).font(.system(size: 13, weight: .medium)).foregroundStyle(Theme.secondaryText)
             if let message {
-                Text(message).font(.system(size: 12)).foregroundStyle(.tertiary).multilineTextAlignment(.center)
+                Text(message).font(.system(size: 12)).foregroundStyle(Theme.mutedText).multilineTextAlignment(.center)
             }
         }
         .padding(24)

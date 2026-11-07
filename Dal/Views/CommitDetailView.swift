@@ -37,7 +37,7 @@ struct CommitDetailView: View {
 
     private var shaBar: some View {
         HStack(spacing: 6) {
-            Text("commit").font(.system(size: 11)).foregroundStyle(.secondary)
+            Text("commit").font(.system(size: 11)).foregroundStyle(Theme.secondaryText)
             Button {
                 store.copy(commit.sha, label: "Copied \(commit.shortSha)")
             } label: {
@@ -51,7 +51,7 @@ struct CommitDetailView: View {
             .help("Copy full SHA")
             Spacer()
             if commit.isMerge {
-                Text("MERGE").font(.system(size: 9.5, weight: .bold)).foregroundStyle(.secondary)
+                Text("MERGE").font(.system(size: 9.5, weight: .bold)).foregroundStyle(Theme.secondaryText)
                     .padding(.horizontal, 6).frame(height: 17)
                     .background(Capsule().fill(Theme.subtleFill))
             }
@@ -67,7 +67,7 @@ struct CommitDetailView: View {
             if !commit.body.isEmpty {
                 Text(commit.body)
                     .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.secondaryText)
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -87,22 +87,22 @@ struct CommitDetailView: View {
                 AvatarView(name: commit.authorName, email: commit.authorEmail, size: 34)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(commit.authorName).font(.system(size: 13, weight: .semibold))
-                    Text(commit.authorEmail).font(.system(size: 11)).foregroundStyle(.secondary).textSelection(.enabled)
+                    Text(commit.authorEmail).font(.system(size: 11)).foregroundStyle(Theme.secondaryText).textSelection(.enabled)
                     Text("authored \(Formatters.full.string(from: commit.authorDate))")
-                        .font(.system(size: 11)).foregroundStyle(.tertiary)
+                        .font(.system(size: 11)).foregroundStyle(Theme.mutedText)
                 }
                 Spacer()
             }
             if commit.committerEmail != commit.authorEmail || commit.committerName != commit.authorName {
                 HStack(spacing: 6) {
                     AvatarView(name: commit.committerName, email: commit.committerEmail, size: 18)
-                    Text("committed by \(commit.committerName)").font(.system(size: 11)).foregroundStyle(.secondary)
+                    Text("committed by \(commit.committerName)").font(.system(size: 11)).foregroundStyle(Theme.secondaryText)
                 }
             }
             if !commit.parents.isEmpty {
                 HStack(spacing: 6) {
                     Text(commit.parents.count > 1 ? "parents" : "parent")
-                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                        .font(.system(size: 11)).foregroundStyle(Theme.secondaryText)
                     ForEach(commit.parents, id: \.self) { parent in
                         Button(String(parent.prefix(7))) { store.select(commit: parent, scroll: true) }
                             .buttonStyle(.plain)
@@ -138,7 +138,7 @@ struct CommitDetailView: View {
     private func stat(_ symbol: String, _ count: Int, _ label: String, _ color: Color) -> some View {
         HStack(spacing: 3) {
             Image(systemName: symbol).font(.system(size: 9, weight: .bold)).foregroundStyle(color)
-            Text("\(count) \(label)").font(.system(size: 11)).foregroundStyle(.secondary)
+            Text("\(count) \(label)").font(.system(size: 11)).foregroundStyle(Theme.secondaryText)
         }
     }
 
@@ -148,7 +148,7 @@ struct CommitDetailView: View {
         } else if let loadError {
             Text(loadError).font(.system(size: 11)).foregroundStyle(Theme.deleted).textSelection(.enabled)
         } else if changes.isEmpty {
-            Text("No file changes").font(.system(size: 11)).foregroundStyle(.tertiary)
+            Text("No file changes").font(.system(size: 11)).foregroundStyle(Theme.mutedText)
         } else {
             LazyVStack(alignment: .leading, spacing: 1) {
                 if treeMode {
@@ -156,7 +156,7 @@ struct CommitDetailView: View {
                         if !dir.isEmpty {
                             Label(dir, systemImage: "folder")
                                 .font(.system(size: 11))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Theme.secondaryText)
                                 .padding(.top, 6)
                                 .padding(.leading, 6)
                         }
@@ -198,9 +198,9 @@ struct StashDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
-                    Text(stash.ref).font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
+                    Text(stash.ref).font(.system(size: 11, design: .monospaced)).foregroundStyle(Theme.secondaryText)
                     Spacer()
-                    Text(Formatters.full.string(from: stash.date)).font(.system(size: 11)).foregroundStyle(.tertiary)
+                    Text(Formatters.full.string(from: stash.date)).font(.system(size: 11)).foregroundStyle(Theme.mutedText)
                 }
                 Text(stash.message).font(.system(size: 15, weight: .semibold)).textSelection(.enabled)
                 HStack(spacing: 8) {
@@ -220,7 +220,7 @@ struct StashDetailView: View {
                 }
                 .padding(.horizontal, -10)
                 Text("New (untracked) files in a stash aren't listed here.")
-                    .font(.system(size: 11)).foregroundStyle(.tertiary)
+                    .font(.system(size: 11)).foregroundStyle(Theme.mutedText)
             }
             .padding(16)
         }

@@ -13,7 +13,7 @@ struct InputSheet: View {
         VStack(alignment: .leading, spacing: 12) {
             Text(request.title).font(.system(size: 15, weight: .semibold))
             if let message = request.message {
-                Text(message).font(.system(size: 12)).foregroundStyle(.secondary)
+                Text(message).font(.system(size: 12)).foregroundStyle(Theme.secondaryText)
             }
             TextField(request.placeholder, text: $text)
                 .textFieldStyle(.roundedBorder)
@@ -70,13 +70,13 @@ struct CloneSheet: View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Clone a repository").font(.system(size: 15, weight: .semibold))
             VStack(alignment: .leading, spacing: 5) {
-                Text("URL").font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
+                Text("URL").font(.system(size: 11, weight: .medium)).foregroundStyle(Theme.secondaryText)
                 TextField("https://github.com/owner/repo.git  or  git@github.com:owner/repo.git", text: $remote)
                     .textFieldStyle(.roundedBorder)
                     .onChange(of: remote) { _, _ in if !nameEdited { name = derivedName } }
             }
             VStack(alignment: .leading, spacing: 5) {
-                Text("Where").font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
+                Text("Where").font(.system(size: 11, weight: .medium)).foregroundStyle(Theme.secondaryText)
                 HStack {
                     Text((parentPath as NSString).abbreviatingWithTildeInPath)
                         .font(.system(size: 12))
@@ -90,7 +90,7 @@ struct CloneSheet: View {
                 }
             }
             VStack(alignment: .leading, spacing: 5) {
-                Text("Folder name").font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
+                Text("Folder name").font(.system(size: 11, weight: .medium)).foregroundStyle(Theme.secondaryText)
                 TextField("repo", text: Binding(get: { name }, set: { name = $0; nameEdited = true }))
                     .textFieldStyle(.roundedBorder)
                 if exists {
@@ -104,7 +104,7 @@ struct CloneSheet: View {
             HStack {
                 if cloning {
                     ProgressView().controlSize(.small)
-                    Text("Cloning…").font(.system(size: 12)).foregroundStyle(.secondary)
+                    Text("Cloning…").font(.system(size: 12)).foregroundStyle(Theme.secondaryText)
                 }
                 Spacer()
                 Button("Cancel", role: .cancel) { dismiss() }
@@ -163,7 +163,7 @@ struct CreatePRSheet: View {
                 Picker("From", selection: $head) {
                     ForEach(branchNames, id: \.self) { Text($0).tag($0) }
                 }
-                Image(systemName: "arrow.right").foregroundStyle(.secondary)
+                Image(systemName: "arrow.right").foregroundStyle(Theme.secondaryText)
                 Picker("Into", selection: $base) {
                     ForEach(remoteBranchNames, id: \.self) { Text($0).tag($0) }
                 }
@@ -177,7 +177,7 @@ struct CreatePRSheet: View {
                     .scrollContentBackground(.hidden)
                     .padding(4)
                 if bodyText.isEmpty {
-                    Text("Description (Markdown)").font(.system(size: 12)).foregroundStyle(.tertiary)
+                    Text("Description (Markdown)").font(.system(size: 12)).foregroundStyle(Theme.mutedText)
                         .padding(.horizontal, 9).padding(.vertical, 5).allowsHitTesting(false)
                 }
             }
@@ -186,7 +186,7 @@ struct CreatePRSheet: View {
             .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Theme.separator))
             Toggle("Create as draft", isOn: $draft).toggleStyle(.checkbox)
             Text("The branch is pushed first if it isn't on the remote yet. Uses the GitHub CLI (gh).")
-                .font(.system(size: 11)).foregroundStyle(.tertiary)
+                .font(.system(size: 11)).foregroundStyle(Theme.mutedText)
             if let error {
                 Text(error)
                     .font(.system(size: 11))
@@ -257,7 +257,7 @@ private struct GeneralSettings: View {
             Section("Graph") {
                 Toggle("Show avatars from Gravatar / GitHub", isOn: $useGravatar)
                 Text("Sends a hash of each author's email to gravatar.com. Turn off to use initials only.")
-                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                    .font(.system(size: 11)).foregroundStyle(Theme.secondaryText)
                 Picker("Commits loaded at a time", selection: $commitLimit) {
                     Text("1,000").tag(1000)
                     Text("2,000").tag(2000)
@@ -276,9 +276,9 @@ private struct GeneralSettings: View {
                 Toggle("Download updates in the background", isOn: Binding(
                     get: { updater.automaticallyDownloads }, set: { updater.automaticallyDownloads = $0 }))
                 Text("When an update is ready, “Update ready · Restart Dal” appears at the top right. It also installs when you quit.")
-                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                    .font(.system(size: 11)).foregroundStyle(Theme.secondaryText)
                 HStack {
-                    Text("Version \(updater.version)").foregroundStyle(.secondary)
+                    Text("Version \(updater.version)").foregroundStyle(Theme.secondaryText)
                     Spacer()
                     Button("Check Now") { updater.checkForUpdates() }
                         .disabled(!updater.canCheckForUpdates)

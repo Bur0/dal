@@ -41,7 +41,7 @@ struct WorkingChangesView: View {
                     .font(.system(size: 13, weight: .semibold))
                 Text("on \(store.headBranch ?? "detached HEAD")")
                     .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.secondaryText)
             }
             Spacer()
             if !status.isEmpty {
@@ -96,7 +96,7 @@ struct WorkingChangesView: View {
                         Image(systemName: "chevron.right")
                             .font(.system(size: 9, weight: .bold))
                             .rotationEffect(.degrees(isOpen.wrappedValue ? 90 : 0))
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(Theme.mutedText)
                         SectionTitle(title: title, count: files.count)
                     }
                     .contentShape(Rectangle())
@@ -108,7 +108,7 @@ struct WorkingChangesView: View {
                         Button("Discard All") { store.discardAll() }
                             .buttonStyle(.borderless)
                             .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Theme.secondaryText)
                     }
                     Button(staged ? "Unstage All" : "Stage All") {
                         staged ? store.unstageAll() : store.stageAll()
@@ -136,7 +136,7 @@ struct WorkingChangesView: View {
                 if files.isEmpty {
                     Text(staged ? "Staged files go into the next commit" : "Nothing to stage")
                         .font(.system(size: 11))
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(Theme.mutedText)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 4)
                 }
@@ -181,7 +181,7 @@ struct WorkingChangesView: View {
                     .onSubmit { focus = .body }   // ⌘↩ commits; Return moves on to the description
                 Text("\(72 - store.commitSummary.count)")
                     .font(.system(size: 11).monospacedDigit())
-                    .foregroundStyle(store.commitSummary.count > 72 ? Theme.deleted : Color.secondary.opacity(0.6))
+                    .foregroundStyle(store.commitSummary.count > 72 ? Theme.deleted : Theme.mutedText)
                     .help("Keep the summary under 72 characters")
             }
             .padding(.horizontal, 9)
@@ -199,7 +199,7 @@ struct WorkingChangesView: View {
                 if store.commitBody.isEmpty {
                     Text("Description (optional)")
                         .font(.system(size: 12))
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(Theme.mutedText)
                         .padding(.horizontal, 9)
                         .padding(.vertical, 6)
                         .allowsHitTesting(false)

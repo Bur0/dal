@@ -66,7 +66,7 @@ struct ConflictView: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(change.path).font(.system(size: 13, weight: .semibold)).lineLimit(1).truncationMode(.head)
                 Text(conflicts.isEmpty ? "Conflict" : "\(resolvedCount) of \(conflicts.count) conflicts resolved")
-                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                    .font(.system(size: 11)).foregroundStyle(Theme.secondaryText)
             }
             Spacer()
             Menu("Take Whole File") {
@@ -170,7 +170,7 @@ private struct ContextBlock: View {
                         .background(Theme.subtleFill)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.secondaryText)
                 linesView(Array(lines.suffix(3)))
             } else {
                 linesView(lines)
@@ -182,7 +182,7 @@ private struct ContextBlock: View {
         ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
             Text(line.isEmpty ? " " : line)
                 .font(Theme.mono)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.secondaryText)
                 .padding(.leading, 16)
                 .padding(.vertical, 1)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -205,7 +205,7 @@ private struct ConflictBlock: View {
                 side(title: "Current · \(oursLabel)", lines: ours, color: Theme.renamed) { choice = .ours }
                 side(title: "Incoming · \(theirsLabel)", lines: theirs, color: Theme.added) { choice = .theirs }
                 HStack(spacing: 8) {
-                    Text("Keep both:").font(.system(size: 11)).foregroundStyle(.secondary)
+                    Text("Keep both:").font(.system(size: 11)).foregroundStyle(Theme.secondaryText)
                     Button("Current first") { choice = .oursThenTheirs }
                     Button("Incoming first") { choice = .theirsThenOurs }
                     Spacer()
@@ -241,7 +241,7 @@ private struct ConflictBlock: View {
                     .background(color.opacity(0.05))
             }
             if lines.isEmpty {
-                Text("(empty)").font(.system(size: 11)).foregroundStyle(.tertiary).padding(.leading, 16).padding(.vertical, 3)
+                Text("(empty)").font(.system(size: 11)).foregroundStyle(Theme.mutedText).padding(.leading, 16).padding(.vertical, 3)
             }
         }
     }

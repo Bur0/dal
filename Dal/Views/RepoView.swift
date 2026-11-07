@@ -218,7 +218,7 @@ struct RepoToolbar: View {
                 HStack(spacing: 6) {
                     ProgressView().controlSize(.small)
                     if !compact {
-                        Text(busy + "…").font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                        Text(busy + "…").font(.system(size: 11)).foregroundStyle(Theme.secondaryText).lineLimit(1)
                     }
                     Button {
                         store.cancelRunning()
@@ -226,7 +226,7 @@ struct RepoToolbar: View {
                         Image(systemName: "xmark.circle.fill").font(.system(size: 12))
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.secondaryText)
                     .help("Cancel \(busy.lowercased())")
                     .accessibilityLabel("Cancel \(busy)")
                 }
@@ -243,7 +243,7 @@ struct RepoToolbar: View {
     private var repoAndBranch: some View {
         HStack(spacing: 14) {
             VStack(alignment: .leading, spacing: 1) {
-                Text("repository").font(.system(size: 11)).foregroundStyle(.tertiary).fixedSize()
+                Text("repository").font(.system(size: 11)).foregroundStyle(Theme.mutedText).fixedSize()
                 Menu {
                     ForEach(app.recent.filter { $0 != store.url.path }.prefix(10), id: \.self) { path in
                         Button((path as NSString).lastPathComponent) { app.open(URL(fileURLWithPath: path)) }
@@ -260,10 +260,10 @@ struct RepoToolbar: View {
                 .menuStyle(.borderlessButton)
                 .fixedSize()
             }
-            Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold)).foregroundStyle(.tertiary)
+            Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold)).foregroundStyle(Theme.mutedText)
                 .padding(.top, 10)
             VStack(alignment: .leading, spacing: 1) {
-                Text("branch").font(.system(size: 11)).foregroundStyle(.tertiary).fixedSize()
+                Text("branch").font(.system(size: 11)).foregroundStyle(Theme.mutedText).fixedSize()
                 Menu {
                     ForEach(store.localBranches) { ref in
                         Button {
@@ -286,7 +286,7 @@ struct RepoToolbar: View {
 
     private func searchField(compact: Bool) -> some View {
         HStack(spacing: 5) {
-            Image(systemName: "magnifyingglass").font(.system(size: 11)).foregroundStyle(.secondary)
+            Image(systemName: "magnifyingglass").font(.system(size: 11)).foregroundStyle(Theme.secondaryText)
             TextField("Search commits", text: $store.searchText)
                 .textFieldStyle(.plain)
                 .font(.system(size: 12))
@@ -296,7 +296,7 @@ struct RepoToolbar: View {
             if !store.searchText.isEmpty {
                 Text("\(store.searchMatches.count)")
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.secondaryText)
                     .monospacedDigit()
                 Button {
                     store.searchText = ""
@@ -304,7 +304,7 @@ struct RepoToolbar: View {
                     Image(systemName: "xmark.circle.fill").font(.system(size: 11))
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(Theme.mutedText)
                 .accessibilityLabel("Clear search")
             }
         }
@@ -334,7 +334,7 @@ private struct OngoingBanner: View {
                         ? "Resolve 1 conflicted file, then continue"
                         : "Resolve \(store.status.conflicted.count) conflicted files, then continue")
                     .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.secondaryText)
             }
             Spacer()
             Button("Abort", role: .destructive) { store.abortOperation() }

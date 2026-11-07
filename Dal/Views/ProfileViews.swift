@@ -15,7 +15,7 @@ struct ProfileMenu: View {
                 AvatarView(name: identity.name, email: identity.email, size: 18)
                 Text(profiles.active?.label ?? "Git config")
                     .font(.system(size: 12, weight: .medium))
-                Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold)).foregroundStyle(.secondary)
+                Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold)).foregroundStyle(Theme.secondaryText)
             }
             .padding(.horizontal, 7)
             .frame(height: 26)
@@ -61,7 +61,7 @@ struct CommitIdentityLine: View {
                 Spacer(minLength: 0)
             }
             .font(.system(size: 11))
-            .foregroundStyle(identity.email.isEmpty ? Theme.deleted : .secondary)
+            .foregroundStyle(identity.email.isEmpty ? Theme.deleted : Theme.secondaryText)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -91,7 +91,7 @@ private struct ProfilePicker: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.secondaryText)
                 .padding(.horizontal, 10)
                 .padding(.bottom, 4)
             PickerRow(name: profiles.systemName, email: profiles.systemEmail, title: noneTitle, detail: noneDetail,
@@ -135,7 +135,7 @@ private struct PickerRow: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title).font(.system(size: 13, weight: .medium))
                     if !detail.isEmpty {
-                        Text(detail).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                        Text(detail).font(.system(size: 11)).foregroundStyle(Theme.secondaryText).lineLimit(1)
                     }
                 }
                 Spacer()
@@ -168,7 +168,7 @@ struct ProfilesSettings: View {
                             AvatarView(name: profile.authorName, email: profile.authorEmail, size: 22)
                             VStack(alignment: .leading, spacing: 1) {
                                 Text(profile.label).font(.system(size: 12, weight: .medium))
-                                Text(profile.displayEmail).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                                Text(profile.displayEmail).font(.system(size: 11)).foregroundStyle(Theme.secondaryText).lineLimit(1)
                             }
                             Spacer()
                             if profiles.activeID == profile.id {
@@ -232,7 +232,7 @@ private struct ProfileEditor: View {
                 TextField("Name", text: $profile.authorName, prompt: Text(profiles.systemName.isEmpty ? "Your Name" : profiles.systemName))
                 TextField("Email", text: $profile.authorEmail, prompt: Text(profiles.systemEmail.isEmpty ? "you@example.com" : profiles.systemEmail))
                 Text("Leave empty to use your global git config.")
-                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                    .font(.system(size: 11)).foregroundStyle(Theme.secondaryText)
             }
             Section("Authentication") {
                 if profiles.ghAvailable {
@@ -242,10 +242,10 @@ private struct ProfileEditor: View {
                     }
                     Text(profiles.ghAccounts.count > 1 ? "Used for pull requests, issues and HTTPS pushes to GitHub."
                          : "Sign in to more accounts with `gh auth login` in Terminal; they'll appear here.")
-                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                        .font(.system(size: 11)).foregroundStyle(Theme.secondaryText)
                 } else {
                     Text("Install the GitHub CLI (`brew install gh`) to switch GitHub accounts.")
-                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                        .font(.system(size: 11)).foregroundStyle(Theme.secondaryText)
                 }
                 HStack {
                     TextField("SSH key", text: Binding(get: { profile.sshKeyPath ?? "" },

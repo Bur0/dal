@@ -59,6 +59,10 @@ enum DebugSnapshot {
             case "collapse":
                 let app = AppState.shared
                 if let i = Int(arg), i < app.groups.count { app.toggleCollapsed(app.groups[i]) }
+            case "expandrefs":
+                if let store, let index = Int(arg), index < store.items.count {
+                    store.debugExpandedRefs = store.items[index].id
+                }
             case "welcome":
                 AppState.shared.select(nil)
             case "conflict":

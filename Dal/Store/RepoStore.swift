@@ -133,6 +133,10 @@ final class RepoStore: Identifiable {
     var fileFocus: FileFocus?
     var scrollTarget: String?
     var scrollCentered = true
+    #if DEBUG
+    /// Debug snapshots can't hover; this forces one row's branch list open.
+    var debugExpandedRefs: String?
+    #endif
     var searchText = "" {
         didSet { if searchText != oldValue { scheduleSearch() } }
     }

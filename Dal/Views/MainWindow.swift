@@ -92,7 +92,7 @@ struct TabBar: View {
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Theme.secondaryText)
                         .help("New tab (⌘T)")
                     }
                     .padding(.vertical, 5)
@@ -123,7 +123,7 @@ struct TabBar: View {
                     .background(RoundedRectangle(cornerRadius: 6).fill(Theme.subtleFill))
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.secondaryText)
                 .help("All repositories (⌘P)")
             }
             VersionBadge()
@@ -177,7 +177,7 @@ struct VersionBadge: View {
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .fixedSize()
-        .foregroundStyle(.tertiary)
+        .foregroundStyle(Theme.mutedText)
         .help("Dal \(updater.version) — click to check for updates")
         .accessibilityLabel("Dal version \(updater.version)")
     }
@@ -279,7 +279,7 @@ private struct TabItem: View {
         HStack(spacing: 6) {
             Image(systemName: "folder")
                 .font(.system(size: 11))
-                .foregroundStyle(selected ? Color.accentColor : .secondary)
+                .foregroundStyle(selected ? Color.accentColor : Theme.secondaryText)
             Text(store.name)
                 .font(.system(size: 12, weight: selected ? .semibold : .regular))
                 .lineLimit(1)
@@ -295,7 +295,7 @@ private struct TabItem: View {
                     .background(Circle().fill(hovering ? Theme.hoverFill : .clear))
             }
             .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Theme.secondaryText)
             .opacity(hovering || selected ? 1 : 0)
             .help("Close tab (⌘W)")
             .accessibilityLabel("Close \(store.name)")
@@ -405,7 +405,7 @@ struct QuickSwitcher: View {
         let list = entries
         VStack(spacing: 0) {
             HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                Image(systemName: "magnifyingglass").foregroundStyle(Theme.secondaryText)
                 TextField("Jump to repository…", text: $query)
                     .textFieldStyle(.plain)
                     .font(.system(size: 15))
@@ -427,7 +427,7 @@ struct QuickSwitcher: View {
                                 .onTapGesture { highlighted = index; choose(list) }
                         }
                         if list.isEmpty {
-                            Text("No matching repositories").font(.system(size: 12)).foregroundStyle(.tertiary).padding(20)
+                            Text("No matching repositories").font(.system(size: 12)).foregroundStyle(Theme.mutedText).padding(20)
                         }
                     }
                     .padding(6)
@@ -441,7 +441,7 @@ struct QuickSwitcher: View {
                 hint("↩", "open")
                 hint("esc", "close")
                 Spacer()
-                Text("\(list.count) repositories").font(.system(size: 11).monospacedDigit()).foregroundStyle(.tertiary)
+                Text("\(list.count) repositories").font(.system(size: 11).monospacedDigit()).foregroundStyle(Theme.mutedText)
             }
             .padding(.horizontal, 16)
             .frame(height: 36)
@@ -454,19 +454,19 @@ struct QuickSwitcher: View {
     private func hint(_ keys: String, _ label: String) -> some View {
         HStack(spacing: 6) {
             KeyCap(keys: keys)
-            Text(label).font(.system(size: 11)).foregroundStyle(.tertiary)
+            Text(label).font(.system(size: 11)).foregroundStyle(Theme.mutedText)
         }
     }
 
     private func row(_ entry: Entry, highlighted: Bool) -> some View {
         HStack(spacing: 10) {
             Image(systemName: entry.store == nil ? "clock" : "folder.fill")
-                .foregroundStyle(entry.store == nil ? Color.secondary : Color.accentColor.opacity(0.85))
+                .foregroundStyle(entry.store == nil ? Theme.secondaryText : Color.accentColor)
                 .frame(width: 18)
             VStack(alignment: .leading, spacing: 1) {
                 Text((entry.path as NSString).lastPathComponent).font(.system(size: 13, weight: .medium))
                 Text((entry.path as NSString).abbreviatingWithTildeInPath)
-                    .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                    .font(.system(size: 11)).foregroundStyle(Theme.secondaryText).lineLimit(1).truncationMode(.middle)
             }
             Spacer()
             if let group = entry.group {
@@ -478,7 +478,7 @@ struct QuickSwitcher: View {
                     .background(Capsule().fill(Theme.lane(group.color)))
             }
             if entry.store == nil {
-                Text("recent").font(.system(size: 11)).foregroundStyle(.tertiary)
+                Text("recent").font(.system(size: 11)).foregroundStyle(Theme.mutedText)
             }
         }
         .padding(.horizontal, 10)
@@ -520,10 +520,10 @@ struct WelcomeView: View {
                         Text("Dal").font(.system(size: 26, weight: .semibold))
                         Text("Git client for macOS")
                             .font(.system(size: 13))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Theme.secondaryText)
                         Text("Version \(updater.version)")
                             .font(.system(size: 11).monospacedDigit())
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(Theme.mutedText)
                     }
                 }
                 .padding(.leading, 4)
@@ -534,7 +534,7 @@ struct WelcomeView: View {
                 }
                 Text("Or drop a folder anywhere in this window")
                     .font(.system(size: 12))
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(Theme.mutedText)
                     .padding(.leading, 12)
             }
             .frame(width: 280, alignment: .leading)
@@ -545,7 +545,7 @@ struct WelcomeView: View {
                     Spacer()
                     if !app.recent.isEmpty {
                         HStack(spacing: 6) {
-                            Text("Jump to any").font(.system(size: 11)).foregroundStyle(.tertiary)
+                            Text("Jump to any").font(.system(size: 11)).foregroundStyle(Theme.mutedText)
                             KeyCap(keys: "⌘P")
                         }
                     }
@@ -554,7 +554,7 @@ struct WelcomeView: View {
                 if app.recent.isEmpty {
                     Text("Repositories you open appear here")
                         .font(.system(size: 12))
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(Theme.mutedText)
                 } else {
                     VStack(spacing: 2) {
                         ForEach(app.recent.prefix(10), id: \.self) { path in
@@ -589,7 +589,7 @@ private struct WelcomeAction: View {
                 Image(systemName: symbol)
                     .font(.system(size: 14))
                     .frame(width: 20)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.secondaryText)
                 Text(title).font(.system(size: 13))
                 Spacer()
                 if let shortcut { KeyCap(keys: shortcut) }
@@ -613,13 +613,13 @@ private struct RecentRow: View {
         let exists = FileManager.default.fileExists(atPath: path)
         HStack(spacing: 10) {
             Image(systemName: "folder.fill")
-                .foregroundStyle(exists ? Color.secondary : Color.secondary.opacity(0.4))
+                .foregroundStyle(exists ? Theme.secondaryText : Theme.mutedText)
             VStack(alignment: .leading, spacing: 1) {
                 Text((path as NSString).lastPathComponent)
                     .font(.system(size: 13, weight: .medium))
                 Text((path as NSString).abbreviatingWithTildeInPath)
                     .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.secondaryText)
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
@@ -631,7 +631,7 @@ private struct RecentRow: View {
                     Image(systemName: "xmark").font(.system(size: 9, weight: .bold))
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.secondaryText)
                 .help("Remove from list")
                 .accessibilityLabel("Remove from recent")
             }
