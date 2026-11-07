@@ -580,8 +580,23 @@ final class RepoStore: Identifiable {
 
     // MARK: GitHub
 
+    @ObservationIgnored private var githubRemoteCache: Bool?
+
+    private func hasGitHubRemote() async -> Bool {
+        if let cached = githubRemoteCache { return cached }
+        let urls = (try? await git.string(["config", "--get-regexp", "^remote\\..*\\.url$"], allowExit: [0, 1])) ?? ""
+        let result = urls.lowercased().contains("github.com")
+        githubRemoteCache = result
+        return result
+    }
+
     func loadGitHub() async {
-        guard remotes.contains(where: { _ in true }) else { return }
+        // gh is a separate process (and a network round trip) per call: only ask when a remote
+        // actually points at GitHub.
+        guard !remotes.isEmpty, await hasGitHubRemote() else {
+            if githubError != nil { githubError = nil }
+            return
+        }
         githubLoading = true
         defer { githubLoading = false }
         do {

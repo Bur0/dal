@@ -51,7 +51,30 @@ final class ProfileStore {
            let saved = try? JSONDecoder().decode([String: UUID].self, from: data) {
             repoOverrides = saved
         }
-        Task { await reload() }
+        // Launch only reads what's cheap; `gh auth status` (a network call) waits for Settings.
+        Task { await loadEssentials() }
+    }
+
+    /// Git identity, gh's location (looked up on disk, no process) and tokens only for profiles
+    /// that actually use a GitHub account.
+    func loadEssentials() async {
+        async let name = Shell.run("git", ["config", "--global", "user.name"], cwd: nil)
+        async let email = Shell.run("git", ["config", "--global", "user.email"], cwd: nil)
+        systemName = (try? await name)?.stdout.utf8.trimmed ?? ""
+        systemEmail = (try? await email)?.stdout.utf8.trimmed ?? ""
+        ghPath = Self.locateGh()
+        ghAvailable = ghPath != nil
+        guard ghAvailable else { return }
+        for account in Set(profiles.compactMap(\.githubAccount)) where tokens[account] == nil {
+            await loadToken(account)
+        }
+    }
+
+    static func locateGh() -> String? {
+        let dirs = Shell.extraPath.split(separator: ":").map(String.init)
+            + (ProcessInfo.processInfo.environment["PATH"] ?? "").split(separator: ":").map(String.init).filter { $0.hasPrefix("/") }
+        return dirs.map { ($0 as NSString).appendingPathComponent("gh") }
+            .first { FileManager.default.isExecutableFile(atPath: $0) }
     }
 
     var active: GitProfile? { activeID.flatMap { id in profiles.first { $0.id == id } } }
@@ -171,16 +194,9 @@ final class ProfileStore {
 
     // MARK: Discovery
 
+    /// Full refresh including signed-in gh accounts — used by the Profiles settings.
     func reload() async {
-        async let name = Shell.run("git", ["config", "--global", "user.name"], cwd: nil)
-        async let email = Shell.run("git", ["config", "--global", "user.email"], cwd: nil)
-        systemName = (try? await name)?.stdout.utf8.trimmed ?? ""
-        systemEmail = (try? await email)?.stdout.utf8.trimmed ?? ""
-
-        let which = try? await Shell.run("which", ["gh"], cwd: nil)
-        let path = which?.stdout.utf8.trimmed ?? ""
-        ghPath = path.isEmpty ? nil : path
-        ghAvailable = ghPath != nil
+        await loadEssentials()
         guard ghAvailable, let status = try? await Shell.run("gh", ["auth", "status", "--hostname", "github.com"], cwd: nil) else {
             return
         }

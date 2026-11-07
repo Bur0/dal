@@ -7,9 +7,22 @@ import Foundation
 struct GraphLine: Hashable {
     enum Kind: UInt8 { case pass, toNode, fromNode }
     let kind: Kind
-    let from: Int
-    let to: Int
-    let color: Int
+    // Stored compactly (12 bytes instead of 32): a row keeps one line per lane passing through
+    // it, so with hundreds of branches this dominates memory for long histories.
+    private let fromLane: UInt16
+    private let toLane: UInt16
+    private let colorIndex: UInt32
+
+    var from: Int { Int(fromLane) }
+    var to: Int { Int(toLane) }
+    var color: Int { Int(colorIndex) }
+
+    init(kind: Kind, from: Int, to: Int, color: Int) {
+        self.kind = kind
+        self.fromLane = UInt16(clamping: from)
+        self.toLane = UInt16(clamping: to)
+        self.colorIndex = UInt32(clamping: color)
+    }
 }
 
 struct GraphRow: Hashable {

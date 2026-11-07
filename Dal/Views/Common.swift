@@ -123,15 +123,21 @@ enum Formatters {
 @MainActor
 final class AvatarCache {
     static let shared = AvatarCache()
-    private var images: [String: NSImage] = [:]
+    /// Bounded and purged under memory pressure, unlike a dictionary.
+    private let images: NSCache<NSString, NSImage> = {
+        let cache = NSCache<NSString, NSImage>()
+        cache.countLimit = 400
+        cache.totalCostLimit = 8 * 1024 * 1024
+        return cache
+    }()
     private var missing: Set<String> = []
     private var inflight: [String: Task<NSImage?, Never>] = [:]
 
-    func cached(_ email: String) -> NSImage? { images[email.lowercased()] }
+    func cached(_ email: String) -> NSImage? { images.object(forKey: email.lowercased() as NSString) }
 
     func load(_ email: String) async -> NSImage? {
         let key = email.lowercased()
-        if let image = images[key] { return image }
+        if let image = images.object(forKey: key as NSString) { return image }
         if missing.contains(key) { return nil }
         if let task = inflight[key] { return await task.value }
         let task = Task<NSImage?, Never> {
@@ -143,8 +149,24 @@ final class AvatarCache {
         inflight[key] = task
         let image = await task.value
         inflight[key] = nil
-        if let image { images[key] = image } else { missing.insert(key) }
+        if let image {
+            // Store a 40×40 point (80 px) copy: avatars are drawn at ≤ 34 pt.
+            let small = Self.downscaled(image, to: 80)
+            images.setObject(small, forKey: key as NSString, cost: 80 * 80 * 4)
+        } else {
+            missing.insert(key)
+        }
         return image
+    }
+
+    private static func downscaled(_ image: NSImage, to pixels: CGFloat) -> NSImage {
+        guard image.size.width > pixels / 2 else { return image }
+        let size = NSSize(width: pixels / 2, height: pixels / 2)
+        let small = NSImage(size: size)
+        small.lockFocus()
+        image.draw(in: NSRect(origin: .zero, size: size))
+        small.unlockFocus()
+        return small
     }
 
     static func avatarURL(for email: String) -> URL? {
