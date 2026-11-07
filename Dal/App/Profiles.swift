@@ -140,9 +140,7 @@ final class ProfileStore {
             + "printf 'password=%s\\n' \"$(\(shellQuote(ghPath)) auth token --hostname github.com --user \(shellQuote(account)))\"; }; f"
     }
 
-    static func shellQuote(_ value: String) -> String {
-        "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
-    }
+    static func shellQuote(_ value: String) -> String { value.shellQuoted }
 
     // MARK: Editing
 

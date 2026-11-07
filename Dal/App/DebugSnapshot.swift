@@ -73,6 +73,8 @@ enum DebugSnapshot {
                 if let store, let index = Int(arg), index < store.items.count {
                     store.debugExpandedRefs = store.items[index].id
                 }
+            case "open":
+                AppState.shared.open(URL(fileURLWithPath: arg))
             case "welcome":
                 AppState.shared.select(nil)
             case "conflict":

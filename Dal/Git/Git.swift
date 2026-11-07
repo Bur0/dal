@@ -56,9 +56,14 @@ struct Git: Sendable {
                                      "refs/heads", "refs/remotes", "refs/tags"]))
     }
 
-    func log(limit: Int, includeHead: Bool) async throws -> [Commit] {
-        var args = ["log", "--date-order", "-n", "\(limit)", "--format=\(Parse.logFormat)",
-                    "--branches", "--remotes", "--tags"]
+    func log(limit: Int, includeHead: Bool, only: [String]? = nil) async throws -> [Commit] {
+        var args = ["log", "--date-order", "-n", "\(limit)", "--format=\(Parse.logFormat)"]
+        if let only {
+            // Full refnames only (refs/heads/…), so a name can't be read as an option.
+            args += only.filter { $0.hasPrefix("refs/") }
+        } else {
+            args += ["--branches", "--remotes", "--tags"]
+        }
         if includeHead { args.append("HEAD") }
         args.append("--")
         return Parse.log(try await string(args))

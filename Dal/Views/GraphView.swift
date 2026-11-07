@@ -218,6 +218,14 @@ private struct GraphRowView: View {
         .font(.system(size: 12))
         .frame(height: Theme.rowHeight)
         .background(rowBackground)
+        // A hairline under the text columns keeps long rows easy to follow; the graph stays clean.
+        .overlay(alignment: .bottomTrailing) {
+            Rectangle()
+                .fill(Theme.rowDivider)
+                .frame(height: 1)
+                .padding(.leading, columns.refWidth + columns.graphWidth)
+                .allowsHitTesting(false)
+        }
         .opacity(dimmed ? 0.35 : 1)
         .contentShape(Rectangle())
         .onTapGesture {
@@ -320,9 +328,9 @@ private struct GraphRowView: View {
                         Text("+\(badges.count - 1)")
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(Theme.secondaryText)
-                            .padding(.horizontal, 4)
-                            .frame(height: 17)
-                            .background(RoundedRectangle(cornerRadius: 4).fill(laneColor.opacity(0.18)))
+                            .padding(.horizontal, 6)
+                            .frame(height: 21)
+                            .background(RoundedRectangle(cornerRadius: 5).fill(laneColor.opacity(0.18)))
                     }
                     .menuStyle(.borderlessButton)
                     .menuIndicator(.hidden)
@@ -557,92 +565,221 @@ struct GraphCell: View {
 
 // MARK: Menus
 
+/// Right-click on a commit row: the menu of its first branch label (or just the commit).
 struct CommitMenu: View {
     let store: RepoStore
     let commit: Commit
     let badges: [RefBadge]
 
     var body: some View {
-        let branch = store.headBranch ?? "HEAD"
-        let isHead = commit.sha == store.headSha
-        ForEach(badges.filter { $0.local != nil || !$0.remotes.isEmpty }) { badge in
-            Menu(badge.name) { BadgeMenu(store: store, badge: badge) }
-        }
-        if !badges.isEmpty { Divider() }
-
-        Button("Checkout This Commit (Detached)") { store.checkout(commit.sha) }
-        Button("Create Branch Here…") { store.promptCreateBranch(at: commit.sha) }
-        Button("Create Tag Here…") { store.promptCreateTag(at: commit.sha) }
-        Divider()
-        if !isHead {
-            Button("Merge Into \(branch)") { store.merge(commit.sha) }
-            Button("Rebase \(branch) Onto This Commit") { store.rebaseCurrent(onto: commit.sha) }
-            Button("Cherry-pick Commit") { store.cherryPick(commit) }
-        }
-        Button("Revert Commit") { store.revert(commit) }
-        Menu("Reset \(branch) to This Commit") {
-            Button("Soft — keep all changes staged") { store.reset(to: commit.sha, mode: "soft") }
-            Button("Mixed — keep changes unstaged") { store.reset(to: commit.sha, mode: "mixed") }
-            Button("Hard — discard all changes") { store.reset(to: commit.sha, mode: "hard") }
-        }
-        Divider()
-        Button("Copy SHA") { store.copy(commit.sha, label: "Copied \(commit.shortSha)") }
-        Button("Copy Message") { store.copy(commit.fullMessage, label: "Copied message") }
+        RefMenu(store: store, commit: commit, badge: badges.first { $0.local != nil || !$0.remotes.isEmpty } ?? badges.first,
+                badges: badges)
     }
 }
 
+/// Right-click on a branch or tag label (graph, sidebar).
 struct BadgeMenu: View {
     let store: RepoStore
     let badge: RefBadge
 
     var body: some View {
-        let current = store.headBranch
-        if let local = badge.local {
-            if !local.isHead {
-                Button("Checkout \(local.name)") { store.checkout(local.name) }
-                if let current {
-                    Button("Merge \(local.name) Into \(current)") { store.merge(local.name) }
-                    Button("Rebase \(current) Onto \(local.name)") { store.rebaseCurrent(onto: local.name) }
-                }
-                Divider()
-            }
-            Button("Push \(local.name)") { store.push(branch: local.name) }
-            if local.isHead, local.upstream != nil {
-                Button("Pull") { store.pull() }
-            }
-            if let up = local.upstream, local.behind > 0, local.ahead == 0, !local.isHead {
-                Button("Fast-forward to \(up)") { store.fastForward(local.name, to: up) }
-            }
-            Button("Create Pull Request…") { store.openCreatePR(head: local.name) }
+        let target = badge.primary?.target ?? ""
+        RefMenu(store: store, commit: store.commit(target), badge: badge, badges: store.badges[target] ?? [badge])
+    }
+}
+
+/// One menu for branches, tags and commits, in GitKraken's order: sync, checkout, commit
+/// edits, pull request and patch, rename/delete, copy, Solo, tags. Items that don't apply
+/// to what was clicked are left out rather than disabled.
+private struct RefMenu: View {
+    let store: RepoStore
+    let commit: Commit?
+    let badge: RefBadge?
+    let badges: [RefBadge]
+
+    private var local: Ref? { badge?.local }
+    private var remotes: [Ref] { badge?.remotes ?? [] }
+    private var tag: Ref? { badge?.tag }
+    private var branch: String { store.headBranch ?? "HEAD" }
+
+    var body: some View {
+        syncSection
+        checkoutSection
+        commitSection
+        Divider()
+        if let local { Button("Start a Pull Request…") { store.openCreatePR(head: local.name) } }
+        Button("Apply Patch…") { store.applyPatch() }
+        refSection
+        copySection
+        soloSection
+        if let commit {
             Divider()
-            Button("Rename…") { store.promptRename(local) }
+            Button("Create Tag Here…") { store.promptCreateTag(at: commit.sha) }
+            Button("Create Annotated Tag Here…") { store.promptCreateAnnotatedTag(at: commit.sha) }
+        }
+    }
+
+    // MARK: Pull, push, upstream
+
+    @ViewBuilder private var syncSection: some View {
+        if let local {
+            if local.upstream != nil {
+                Button("Pull (Fast-forward if Possible)") { store.pullFastForward(local) }
+            }
+            Button("Push") { store.push(branch: local.name) }
+            Menu("Set Upstream") {
+                ForEach(store.remoteBranches.filter { !$0.name.hasSuffix("/HEAD") }) { remote in
+                    Toggle(remote.name, isOn: .init(get: { local.upstream == remote.name },
+                                                    set: { _ in store.setUpstream(local, to: remote.name) }))
+                }
+                if store.remoteBranches.isEmpty { Text("No remote branches") }
+            }
+            Divider()
+        } else if let remote = remotes.first, let head = store.headRef, head.upstream == nil {
+            Button("Set as Upstream of \(head.name)") { store.setUpstream(head, to: remote.name) }
+            Divider()
+        }
+    }
+
+    // MARK: Checkout, worktree, merge
+
+    @ViewBuilder private var checkoutSection: some View {
+        let locals = badges.compactMap(\.local)
+        let remoteRefs = badges.flatMap(\.remotes)
+        let tags = badges.compactMap(\.tag)
+        if let local, !local.isHead, locals.count == 1, remoteRefs.allSatisfy({ $0.branchName == local.name }) {
+            Button("Checkout \(local.name)") { store.checkout(local.name) }
+        }
+        Menu("Checkout") {
+            ForEach(locals.filter { !$0.isHead }) { ref in
+                Button(ref.name) { store.checkout(ref.name) }
+            }
+            ForEach(remoteRefs) { ref in
+                Button(ref.name) { store.checkout(remote: ref) }
+            }
+            ForEach(tags) { ref in
+                Button("Tag \(ref.name)") { store.checkout(ref.name) }
+            }
+            if let commit {
+                if !locals.isEmpty || !remoteRefs.isEmpty || !tags.isEmpty { Divider() }
+                Button("This Commit (Detached HEAD)") { store.checkout(commit.sha) }
+            }
+        }
+        if let commit {
+            Menu("Create Worktree From") {
+                ForEach(locals.filter { !$0.isHead }) { ref in
+                    Button(ref.name) { store.createWorktree(ref: ref, sha: commit.sha) }
+                }
+                ForEach(remoteRefs) { ref in
+                    Button(ref.name) { store.createWorktree(ref: ref, sha: commit.sha) }
+                }
+                if locals.contains(where: { !$0.isHead }) || !remoteRefs.isEmpty { Divider() }
+                Button("This Commit (Detached)") { store.createWorktree(ref: nil, sha: commit.sha) }
+            }
+        }
+        mergeItems
+        Divider()
+    }
+
+    @ViewBuilder private var mergeItems: some View {
+        if let current = store.headBranch {
+            if let ref = local ?? remotes.first, !(local?.isHead ?? false) {
+                Button("Merge \(ref.name) Into \(current)") { store.merge(ref.name) }
+                Button("Rebase \(current) Onto \(ref.name)") { store.rebaseCurrent(onto: ref.name) }
+            } else if badge == nil || badge?.tag != nil, let commit, commit.sha != store.headSha {
+                Button("Merge Into \(current)") { store.merge(commit.sha) }
+                Button("Rebase \(current) Onto This Commit") { store.rebaseCurrent(onto: commit.sha) }
+            }
+        }
+        if let local, let up = local.upstream, local.behind > 0, local.ahead == 0, !local.isHead {
+            Button("Fast-forward to \(up)") { store.fastForward(local.name, to: up) }
+        }
+    }
+
+    // MARK: Commit edits
+
+    @ViewBuilder private var commitSection: some View {
+        if let commit {
+            let isHead = commit.sha == store.headSha
+            Button("Create Branch Here…") { store.promptCreateBranch(at: commit.sha) }
+            Menu("Reset \(branch) to This Commit") {
+                Button("Soft — keep all changes staged") { store.reset(to: commit.sha, mode: "soft") }
+                Button("Mixed — keep changes unstaged") { store.reset(to: commit.sha, mode: "mixed") }
+                Button("Hard — discard all changes") { store.reset(to: commit.sha, mode: "hard") }
+            }
+            if store.headSha != nil {
+                Button("Edit Commit Message…") { store.editHistory(.reword, commit) }
+            }
+            if !isHead { Button("Cherry-pick Commit") { store.cherryPick(commit) } }
+            Button("Revert Commit") { store.revert(commit) }
+            if !commit.isMerge, store.headSha != nil {
+                Button("Drop Commit…", role: .destructive) { store.editHistory(.drop, commit) }
+                Button("Move Commit Down") { store.editHistory(.down, commit) }
+                if !isHead { Button("Move Commit Up") { store.editHistory(.up, commit) } }
+            }
+        }
+    }
+
+    // MARK: Rename, delete
+
+    @ViewBuilder private var refSection: some View {
+        if local != nil || !remotes.isEmpty || tag != nil { Divider() }
+        if let local {
+            Button("Rename \(local.name)…") { store.promptRename(local) }
             if !local.isHead {
                 Button("Delete \(local.name)", role: .destructive) { store.deleteBranch(local) }
             }
-            Divider()
-            Button("Copy Branch Name") { store.copy(local.name, label: "Copied \(local.name)") }
         }
-        if !badge.remotes.isEmpty {
-            if badge.local != nil { Divider() }
-            ForEach(badge.remotes) { remote in
-                if badge.local == nil {
-                    Button("Checkout \(remote.name)") { store.checkout(remote: remote) }
-                    if let current {
-                        Button("Merge \(remote.name) Into \(current)") { store.merge(remote.name) }
-                        Button("Rebase \(current) Onto \(remote.name)") { store.rebaseCurrent(onto: remote.name) }
+        ForEach(remotes) { remote in
+            Button("Delete \(remote.name)", role: .destructive) { store.deleteRemoteBranch(remote) }
+        }
+        if let local, !local.isHead, let remote = remotes.first(where: { $0.branchName == local.name }) {
+            Button("Delete \(local.name) and \(remote.name)", role: .destructive) { store.deleteBranchAndRemote(local, remote) }
+        }
+        if let tag {
+            Button("Push Tag \(tag.name)") { store.pushTag(tag) }
+            Button("Delete Tag \(tag.name)", role: .destructive) { store.deleteTag(tag) }
+        }
+    }
+
+    // MARK: Copy
+
+    @ViewBuilder private var copySection: some View {
+        Divider()
+        if let ref = local ?? remotes.first {
+            Button("Copy Branch Name") { store.copy(ref.name, label: "Copied \(ref.name)") }
+        }
+        if let tag { Button("Copy Tag Name") { store.copy(tag.name, label: "Copied \(tag.name)") } }
+        if let commit {
+            Button("Copy Commit SHA") { store.copy(commit.sha, label: "Copied \(commit.shortSha)") }
+            Button("Copy Commit Message") { store.copy(commit.fullMessage, label: "Copied message") }
+        }
+        if !store.remotes.isEmpty {
+            if let ref = local ?? remotes.first {
+                Button("Copy Link to Branch") { store.copyBranchLink(ref) }
+            }
+            if let commit { Button("Copy Link to Commit") { store.copyCommitLink(commit) } }
+        }
+        if let commit { Button("Create Patch From Commit…") { store.createPatch(commit) } }
+    }
+
+    // MARK: Solo
+
+    @ViewBuilder private var soloSection: some View {
+        let branches = badges.filter { $0.local != nil || !$0.remotes.isEmpty }
+        if !branches.isEmpty || store.soloRefs != nil {
+            Divider()
+            Menu("Solo") {
+                ForEach(branches) { b in
+                    Button(b.name) {
+                        store.solo([b.local].compactMap { $0 } + b.remotes, label: b.name)
                     }
                 }
-                if let local = store.headRef, local.upstream == nil {
-                    Button("Set as Upstream of \(local.name)") { store.setUpstream(local, to: remote.name) }
+                if store.soloRefs != nil {
+                    if !branches.isEmpty { Divider() }
+                    Button("Show All Branches") { store.clearSolo() }
                 }
-                Button("Delete \(remote.name) on Remote", role: .destructive) { store.deleteRemoteBranch(remote) }
             }
-        }
-        if let tag = badge.tag {
-            Button("Checkout Tag \(tag.name)") { store.checkout(tag.name) }
-            Button("Push Tag") { store.pushTag(tag) }
-            Button("Delete Tag", role: .destructive) { store.deleteTag(tag) }
-            Button("Copy Tag Name") { store.copy(tag.name, label: "Copied \(tag.name)") }
         }
     }
 }

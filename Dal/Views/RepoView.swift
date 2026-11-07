@@ -13,6 +13,10 @@ struct RepoView: View {
                 RestrictedBanner(store: store)
                 Divider()
             }
+            if let label = store.soloLabel {
+                SoloBanner(store: store, label: label)
+                Divider()
+            }
             if let op = store.ongoing {
                 OngoingBanner(store: store, operation: op)
                 Divider()
@@ -393,6 +397,28 @@ private struct RestrictedBanner: View {
         .controlSize(.small)
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
+        .background(Color.primary.opacity(0.05))
+    }
+}
+
+/// Solo is on: say so, and offer the way back.
+private struct SoloBanner: View {
+    let store: RepoStore
+    let label: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "line.3.horizontal.decrease.circle").foregroundStyle(Theme.secondaryText)
+            (Text("Showing only ") + Text(label).fontWeight(.semibold) + Text(" and its history"))
+                .font(.system(size: 12))
+                .lineLimit(1)
+            Spacer()
+            Button("Show All Branches") { store.clearSolo() }
+                .keyboardShortcut(.escape, modifiers: [])
+        }
+        .controlSize(.small)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 6)
         .background(Color.primary.opacity(0.05))
     }
 }

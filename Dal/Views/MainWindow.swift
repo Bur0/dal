@@ -62,25 +62,51 @@ struct TabBar: View {
         return result
     }
 
+    /// What the strip draws, in order: group chips and the tabs that are visible.
+    private enum Entry: Identifiable {
+        case chip(TabGroup, Int)
+        case tab(RepoStore, Color?)
+        var id: String {
+            switch self {
+            case .chip(let g, _): "g" + g.id.uuidString
+            case .tab(let s, _): s.id.uuidString
+            }
+        }
+    }
+
+    private var entries: [Entry] {
+        segments.flatMap { segment -> [Entry] in
+            switch segment {
+            case .tab(let store): return [.tab(store, nil)]
+            case .group(let group, let members):
+                return [.chip(group, members.count)]
+                    + (group.collapsed ? [] : members.map { .tab($0, Theme.lane(group.color)) })
+            }
+        }
+    }
+
+    private func isSelected(_ entry: Entry) -> Bool {
+        if case .tab(let store, _) = entry { return store.id == app.selectedID }
+        return false
+    }
+
     var body: some View {
         HStack(spacing: 0) {
             Color.clear.frame(width: 78) // traffic lights
             ScrollViewReader { proxy in
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 2) {
-                        ForEach(segments) { segment in
-                            switch segment {
-                            case .tab(let store):
-                                TabItem(store: store, selected: store.id == app.selectedID)
+                        let entries = self.entries
+                        ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
+                            if index > 0 {
+                                TabSeparator(hidden: isSelected(entries[index - 1]) || isSelected(entry))
+                            }
+                            switch entry {
+                            case .tab(let store, let color):
+                                TabItem(store: store, selected: store.id == app.selectedID, groupColor: color)
                                     .id(store.id)
-                            case .group(let group, let members):
-                                GroupChip(group: group, count: members.count)
-                                if !group.collapsed {
-                                    ForEach(members) { store in
-                                        TabItem(store: store, selected: store.id == app.selectedID, groupColor: Theme.lane(group.color))
-                                            .id(store.id)
-                                    }
-                                }
+                            case .chip(let group, let count):
+                                GroupChip(group: group, count: count)
                             }
                         }
                         Button {
@@ -264,6 +290,18 @@ private struct GroupChip: View {
             Button("Ungroup") { app.ungroup(group) }
             Button("Close Group", role: .destructive) { app.closeGroup(group) }
         }
+    }
+}
+
+/// A faint divider between tabs, like Chrome's; it steps aside next to the selected tab.
+private struct TabSeparator: View {
+    let hidden: Bool
+
+    var body: some View {
+        Rectangle()
+            .fill(Color.primary.opacity(hidden ? 0 : 0.14))
+            .frame(width: 1, height: 14)
+            .accessibilityHidden(true)
     }
 }
 

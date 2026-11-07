@@ -116,6 +116,9 @@ final class ProcessRegistry: @unchecked Sendable {
 
 extension String {
     var trimmed: String { trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    /// Single-quoted for /bin/sh (used for helper and editor commands git runs through a shell).
+    var shellQuoted: String { "'" + replacingOccurrences(of: "'", with: "'\\''") + "'" }
 }
 
 extension Data {

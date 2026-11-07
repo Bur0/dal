@@ -17,11 +17,7 @@ struct InputSheet: View {
                     Text(message).font(.system(size: 12)).foregroundStyle(Theme.secondaryText)
                 }
             }
-            TextField("", text: $text, prompt: Text(verbatim: request.placeholder))
-                .textFieldStyle(.roundedBorder)
-                .font(.system(size: 13))
-                .focused($focused)
-                .onSubmit(submit)
+            field
                 .onChange(of: text) { _, new in
                     if let transform = request.transform {
                         let cleaned = transform(new)
@@ -34,7 +30,7 @@ struct InputSheet: View {
                 if let problem, !problem.isEmpty {
                     Text(problem).foregroundStyle(Theme.deleted)
                 } else {
-                    Text(request.hint ?? " ").foregroundStyle(Theme.mutedText)
+                    Text(request.hint ?? (request.multiline ? "⌘Return to save" : " ")).foregroundStyle(Theme.mutedText)
                 }
             }
             .font(.system(size: 11))
@@ -44,16 +40,41 @@ struct InputSheet: View {
                 Button("Cancel", role: .cancel) { dismiss() }
                     .keyboardShortcut(.cancelAction)
                 Button(request.confirmLabel, action: submit)
-                    .keyboardShortcut(.defaultAction)
+                    .keyboardShortcut(request.multiline ? KeyboardShortcut(.return, modifiers: .command) : .defaultAction)
                     .disabled(!canSubmit)
             }
             .padding(.top, 16)
         }
         .padding(20)
-        .frame(width: 400)
+        .frame(width: request.multiline ? 520 : 400)
         .onAppear {
             text = request.initial
             focused = true
+        }
+    }
+
+    @ViewBuilder private var field: some View {
+        if request.multiline {
+            TextEditor(text: $text)
+                .font(.system(size: 13))
+                .scrollContentBackground(.hidden)
+                .padding(6)
+                .frame(height: 160)
+                .background(RoundedRectangle(cornerRadius: 6).fill(Color(nsColor: .textBackgroundColor)))
+                .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Color.primary.opacity(0.15)))
+                .overlay(alignment: .topLeading) {
+                    if text.isEmpty {
+                        Text(verbatim: request.placeholder).font(.system(size: 13)).foregroundStyle(Theme.mutedText)
+                            .padding(.horizontal, 11).padding(.vertical, 6).allowsHitTesting(false)
+                    }
+                }
+                .focused($focused)
+        } else {
+            TextField("", text: $text, prompt: Text(verbatim: request.placeholder))
+                .textFieldStyle(.roundedBorder)
+                .font(.system(size: 13))
+                .focused($focused)
+                .onSubmit(submit)
         }
     }
 

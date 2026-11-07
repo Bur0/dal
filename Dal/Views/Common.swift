@@ -43,6 +43,8 @@ enum Theme {
     static let conflict = deleted
 
     static let rowHeight: CGFloat = 28
+    /// Hairline between graph rows: visible enough to guide the eye, never a grid.
+    static let rowDivider = dynamic(light: Color.black.opacity(0.06), dark: Color.white.opacity(0.06))
     static let laneWidth: CGFloat = 16
     static let mono = Font.system(size: 12, design: .monospaced)
 
@@ -239,38 +241,57 @@ struct RefBadgeView: View {
     var untruncated = false
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 5) {
             if badge.name.hasPrefix("-") {
                 // Git refuses to create these; they only arrive from a remote, usually to trick tools.
-                Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 9))
+                Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 10))
                     .foregroundStyle(Theme.modified)
                     .help("This name starts with a dash, which is unusual and can be used to trick git tools. Dal handles it safely.")
             }
             if badge.isHead {
-                Image(systemName: "checkmark").font(.system(size: 9, weight: .bold))
+                Image(systemName: "checkmark.circle.fill").font(.system(size: 12))
+                    .symbolRenderingMode(.palette)
+                    .foregroundStyle(.white, color)
             } else if badge.tag != nil {
-                Image(systemName: "tag.fill").font(.system(size: 9))
+                Image(systemName: "tag").font(.system(size: 11, weight: .medium))
             }
             Text(badge.name)
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .fixedSize(horizontal: untruncated, vertical: false)
             if !compact {
-                if badge.local != nil {
-                    Image(systemName: "laptopcomputer").font(.system(size: 10))
-                }
-                if !badge.remotes.isEmpty {
-                    Image(systemName: "cloud.fill").font(.system(size: 10))
-                }
+                trailing
             }
         }
         .font(.system(size: 12, weight: badge.isHead ? .semibold : .medium))
         .foregroundStyle(.primary)
-        .padding(.horizontal, 7)
-        .frame(height: 20)
-        .background(RoundedRectangle(cornerRadius: 4).fill(color.opacity(badge.isHead ? 0.38 : 0.22)))
-        .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(color.opacity(0.75), lineWidth: 1))
+        .padding(.leading, badge.isHead ? 4 : 8)
+        .padding(.trailing, 8)
+        .frame(height: 23)
+        .background(RoundedRectangle(cornerRadius: 6).fill(color.opacity(badge.isHead ? 0.38 : 0.22)))
+        .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(color.opacity(0.75), lineWidth: 1))
         .help(helpText)
+    }
+
+    /// Where the branch lives (this Mac / a remote) and how far it is from its upstream.
+    @ViewBuilder private var trailing: some View {
+        let local = badge.local
+        let ahead = local?.ahead ?? 0, behind = local?.behind ?? 0
+        if local != nil || !badge.remotes.isEmpty || ahead > 0 || behind > 0 {
+            HStack(spacing: 4) {
+                if ahead > 0 { Text("↑\(ahead)") }
+                if behind > 0 { Text("↓\(behind)") }
+                if local != nil {
+                    Image(systemName: "laptopcomputer").frame(width: 15)
+                }
+                if !badge.remotes.isEmpty {
+                    Image(systemName: "icloud").frame(width: 15)
+                }
+            }
+            .font(.system(size: 11, weight: .medium).monospacedDigit())
+            .foregroundStyle(.secondary)
+            .padding(.leading, 2)
+        }
     }
 
     private var helpText: String {

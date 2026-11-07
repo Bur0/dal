@@ -48,6 +48,8 @@ struct InputRequest: Identifiable {
     /// Applied while typing, e.g. spaces become dashes in branch names.
     var transform: ((String) -> String)? = nil
     var hint: String? = nil
+    /// A text area instead of one line (commit and tag messages); ⌘Return submits.
+    var multiline = false
     var action: (String) -> Void
 }
 
@@ -190,6 +192,9 @@ final class RepoStore: Identifiable {
     var busy: String?
     var alert: AppAlert?
     var input: InputRequest?
+    /// Solo: the graph shows only these refs' history (full refnames).
+    var soloRefs: [String]?
+    var soloLabel: String?
     var drop: DropRequest?
     var toast: String?
     var toastWarning = false
@@ -332,14 +337,14 @@ final class RepoStore: Identifiable {
             let newRefs = try await refsTask
             let newHead = await headTask
             // `git log` is the expensive part; skip it when no ref, HEAD or page size moved.
-            let fingerprint = newRefs.map { $0.fullName + $0.target }.joined(separator: ",") + "|\(newHead ?? "")|\(limit)"
+            let fingerprint = newRefs.map { $0.fullName + $0.target }.joined(separator: ",") + "|\(newHead ?? "")|\(limit)|\(soloRefs?.joined(separator: ",") ?? "")"
             let newCommits: [Commit]
             if newRefs.isEmpty && newHead == nil {
                 newCommits = []
             } else if fingerprint == logFingerprint && !commits.isEmpty {
                 newCommits = commits
             } else {
-                newCommits = try await git.log(limit: limit, includeHead: newHead != nil)
+                newCommits = try await git.log(limit: limit, includeHead: newHead != nil && soloRefs == nil, only: soloRefs)
             }
             logFingerprint = fingerprint
 

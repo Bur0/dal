@@ -55,7 +55,7 @@ extension RepoStore {
         ProcessRegistry.shared.terminate(tag: url.path)
     }
 
-    private func pushUndo(_ action: UndoAction) {
+    func pushUndo(_ action: UndoAction) {
         undoStack.append(action)
         if undoStack.count > 50 { undoStack.removeFirst() }
         redoStack.removeAll()
@@ -312,14 +312,7 @@ extension RepoStore {
     func promptCreateTag(at sha: String) {
         input = InputRequest(title: "Create tag", message: "At \(String(sha.prefix(7)))", placeholder: "v1.0.0",
                              confirmLabel: "Create Tag",
-                             validate: { [weak self] name in
-            let n = name.trimmed
-            if n.isEmpty { return "" }
-            if n.contains(" ") { return "Tag names can't contain spaces." }
-            if n.hasPrefix("-") { return "Tag names can't start with a dash." }
-            if self?.tags.contains(where: { $0.name == n }) == true { return "That tag already exists." }
-            return nil
-        }, action: { [weak self] name in
+                             validate: { [weak self] name in self?.tagNameProblem(name) }, action: { [weak self] name in
             guard let self else { return }
             run("Create tag", success: "Tagged \(name.trimmed)") { [self] in
                 try await self.git.run(["tag", "--end-of-options", name.trimmed, sha])
