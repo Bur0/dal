@@ -154,9 +154,11 @@ final class AvatarCache {
             if let plus = local.firstIndex(of: "+"), let id = Int(local[..<plus]) {
                 return URL(string: "https://avatars.githubusercontent.com/u/\(id)?s=64")
             }
-            return URL(string: "https://github.com/\(local).png?size=64")
+            guard let login = local.addingPercentEncoding(withAllowedCharacters: .alphanumerics.union(CharacterSet(charactersIn: "-_"))) else { return nil }
+            return URL(string: "https://github.com/\(login).png?size=64")
         }
-        let hash = Insecure.MD5.hash(data: Data(email.utf8)).map { String(format: "%02x", $0) }.joined()
+        // SHA-256 rather than MD5: Gravatar accepts both, MD5 hashes of emails are trivially reversed.
+        let hash = SHA256.hash(data: Data(email.utf8)).map { String(format: "%02x", $0) }.joined()
         return URL(string: "https://www.gravatar.com/avatar/\(hash)?s=64&d=404")
     }
 }
@@ -216,6 +218,12 @@ struct RefBadgeView: View {
 
     var body: some View {
         HStack(spacing: 4) {
+            if badge.name.hasPrefix("-") {
+                // Git refuses to create these; they only arrive from a remote, usually to trick tools.
+                Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 9))
+                    .foregroundStyle(Theme.modified)
+                    .help("This name starts with a dash, which is unusual and can be used to trick git tools. Dal handles it safely.")
+            }
             if badge.isHead {
                 Image(systemName: "checkmark").font(.system(size: 9, weight: .bold))
             } else if badge.tag != nil {

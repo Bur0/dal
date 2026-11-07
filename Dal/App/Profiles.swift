@@ -77,6 +77,9 @@ final class ProfileStore {
         return (name, email)
     }
 
+    /// Environment for git. The GitHub token is NOT in it: hooks, filters and anything else git
+    /// starts inherit git's environment. Instead a credential helper asks gh for the token only
+    /// when git actually needs a GitHub HTTPS credential.
     func environment(for path: String) -> [String: String] {
         guard let p = profile(for: path) else { return [:] }
         var env: [String: String] = [:]
@@ -90,20 +93,32 @@ final class ProfileStore {
         }
         if let keyPath = p.sshKeyPath, !keyPath.isEmpty {
             let expanded = (keyPath as NSString).expandingTildeInPath
-            env["GIT_SSH_COMMAND"] = "ssh -i '\(expanded.replacingOccurrences(of: "'", with: "'\\''"))' -o IdentitiesOnly=yes"
+            env["GIT_SSH_COMMAND"] = "ssh -i \(Self.shellQuote(expanded)) -o IdentitiesOnly=yes"
         }
-        if let account = p.githubAccount, let token = tokens[account] {
-            env["GH_TOKEN"] = token
-            if let ghPath {
-                // Route HTTPS GitHub credentials through gh, which honours GH_TOKEN.
-                env["GIT_CONFIG_COUNT"] = "2"
-                env["GIT_CONFIG_KEY_0"] = "credential.https://github.com.helper"
-                env["GIT_CONFIG_VALUE_0"] = ""
-                env["GIT_CONFIG_KEY_1"] = "credential.https://github.com.helper"
-                env["GIT_CONFIG_VALUE_1"] = "!\(ghPath) auth git-credential"
-            }
+        if let account = p.githubAccount, let ghPath {
+            env["GIT_CONFIG_COUNT"] = "2"
+            env["GIT_CONFIG_KEY_0"] = "credential.https://github.com.helper"
+            env["GIT_CONFIG_VALUE_0"] = ""        // drop any other helper for github.com
+            env["GIT_CONFIG_KEY_1"] = "credential.https://github.com.helper"
+            env["GIT_CONFIG_VALUE_1"] = Self.credentialHelper(ghPath: ghPath, account: account)
         }
         return env
+    }
+
+    /// Environment for gh commands: the selected account's token.
+    func githubEnvironment(for path: String) -> [String: String] {
+        guard let account = profile(for: path)?.githubAccount, let token = tokens[account] else { return [:] }
+        return ["GH_TOKEN": token]
+    }
+
+    /// `git credential` helper (run by git through sh) that prints the account's token on "get".
+    static func credentialHelper(ghPath: String, account: String) -> String {
+        "!f() { test \"$1\" = get || exit 0; echo username=x-access-token; "
+            + "printf 'password=%s\\n' \"$(\(shellQuote(ghPath)) auth token --hostname github.com --user \(shellQuote(account)))\"; }; f"
+    }
+
+    static func shellQuote(_ value: String) -> String {
+        "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 
     // MARK: Editing

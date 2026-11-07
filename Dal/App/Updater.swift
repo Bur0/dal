@@ -88,7 +88,11 @@ final class Updater: NSObject, ObservableObject {
 
 extension Updater: SPUUpdaterDelegate {
     nonisolated func feedURLString(for updater: SPUUpdater) -> String? {
-        ProcessInfo.processInfo.environment["DAL_FEED_URL"]
+        #if DEBUG
+        return ProcessInfo.processInfo.environment["DAL_FEED_URL"]
+        #else
+        return nil   // Release builds only ever use SUFeedURL
+        #endif
     }
 
     /// Called once a silently downloaded update is ready. Returning true means "we'll offer it":

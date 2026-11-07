@@ -6,7 +6,13 @@ struct DalApp: App {
     @StateObject private var updater = Updater()
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
 
+    /// True when launched as the host for unit tests.
+    static let isTestHost = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+
     init() {
+        if Self.isTestHost {
+            NSApplication.shared.setActivationPolicy(.prohibited)
+        }
         // Folder paths on the command line are handled by AppState, not as AppKit "open document"
         // events (those suppress the main window at launch).
         UserDefaults.standard.register(defaults: ["NSTreatUnknownArgumentsAsOpen": "NO"])
@@ -35,15 +41,34 @@ struct DalApp: App {
 
 /// Handles folders opened from Finder, the Dock icon, or `open -a Dal <folder>`.
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    static let mainWindowItemTitle = "Main Window"
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        guard !DalApp.isTestHost else { return }
+        // SwiftUI restores "no windows" if the app last quit with its window closed; Dal is a
+        // single-window app, so make sure the window is there.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { MainActor.assumeIsolated { Self.showMainWindowIfNeeded() } }
+    }
+
+    /// Clicking the Dock icon with no window open brings the window back.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag { MainActor.assumeIsolated { Self.showMainWindowIfNeeded() } }
+        return true
+    }
+
     func application(_ application: NSApplication, open urls: [URL]) {
         MainActor.assumeIsolated {
             for url in urls { AppState.shared.open(url) }
-            // A cold launch from Finder may skip the main window; reopen it via the Window menu item.
-            if !NSApp.windows.contains(where: { $0.isVisible && $0.className.contains("AppKitWindow") }) {
-                let item = NSApp.mainMenu?.items.lazy.compactMap(\.submenu).flatMap(\.items).first { $0.title == "Dal" }
-                if let item, let action = item.action { NSApp.sendAction(action, to: item.target, from: item) }
-            }
+            Self.showMainWindowIfNeeded()
         }
+    }
+
+    @MainActor static func showMainWindowIfNeeded() {
+        let hasWindow = NSApp.windows.contains { $0.isVisible && $0.identifier?.rawValue.hasPrefix("main") == true }
+        guard !hasWindow else { return }
+        // Window ▸ Main Window calls SwiftUI's openWindow(id: "main").
+        let item = NSApp.mainMenu?.items.lazy.compactMap(\.submenu).flatMap(\.items).first { $0.title == mainWindowItemTitle }
+        if let item, let action = item.action { NSApp.sendAction(action, to: item.target, from: item) }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
@@ -52,6 +77,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 struct AppCommands: Commands {
     let app: AppState
     @ObservedObject var updater: Updater
+    @Environment(\.openWindow) private var openWindow
 
     private var store: RepoStore? { app.current }
 
@@ -89,6 +115,8 @@ struct AppCommands: Commands {
         }
 
         CommandGroup(after: .windowArrangement) {
+            Button(AppDelegate.mainWindowItemTitle) { openWindow(id: "main") }
+                .keyboardShortcut("0", modifiers: [.command, .option])
             Divider()
             ForEach(1..<10) { n in
                 Button(n == 9 ? "Last Tab" : "Tab \(n)") { app.selectTab(number: n) }

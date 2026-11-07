@@ -9,6 +9,10 @@ struct RepoView: View {
         VStack(spacing: 0) {
             RepoToolbar(store: store)
             Divider()
+            if store.restricted {
+                RestrictedBanner(store: store)
+                Divider()
+            }
             if let op = store.ongoing {
                 OngoingBanner(store: store, operation: op)
                 Divider()
@@ -342,6 +346,49 @@ private struct OngoingBanner: View {
             Button("Continue") { store.continueOperation() }
                 .buttonStyle(.borderedProminent)
                 .disabled(!store.status.conflicted.isEmpty || store.busy != nil)
+        }
+        .controlSize(.small)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(Color.primary.opacity(0.05))
+    }
+}
+
+/// Shown while Dal is ignoring this repository's program-running git settings.
+private struct RestrictedBanner: View {
+    let store: RepoStore
+    @State private var showDetails = false
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "lock.shield").foregroundStyle(Theme.modified)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Restricted mode").font(.system(size: 12, weight: .semibold))
+                Text("This repository's settings would run programs (\(store.trustFindings.prefix(3).map(\.key).joined(separator: ", "))\(store.trustFindings.count > 3 ? ", …" : "")). Dal is ignoring them, hooks included.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.secondaryText)
+                    .lineLimit(2)
+            }
+            Spacer()
+            Button("Details") { showDetails.toggle() }
+                .popover(isPresented: $showDetails, arrowEdge: .bottom) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Settings in .git/config").font(.system(size: 12, weight: .semibold))
+                        ForEach(store.trustFindings) { finding in
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(finding.key).font(.system(size: 11, weight: .medium, design: .monospaced))
+                                Text(finding.value).font(.system(size: 11, design: .monospaced))
+                                    .foregroundStyle(Theme.secondaryText).lineLimit(2).textSelection(.enabled)
+                            }
+                        }
+                        Text("Trust the repository only if you know where it came from.")
+                            .font(.system(size: 11)).foregroundStyle(Theme.mutedText).padding(.top, 4)
+                    }
+                    .padding(14)
+                    .frame(width: 360, alignment: .leading)
+                }
+            Button("Trust Repository") { store.trustRepository() }
+                .help("Let this repository's git settings and hooks run, like on the command line")
         }
         .controlSize(.small)
         .padding(.horizontal, 16)

@@ -62,6 +62,10 @@ gh release create "v$VERSION" "$ZIP" --repo "$RELEASES_REPO" --title "Dal $VERSI
 # Publish the feed only after the download exists.
 URL="https://github.com/$RELEASES_REPO/releases/download/v$VERSION/Dal-$VERSION.zip"
 python3 scripts/appcast.py "$RELEASES_DIR/appcast.xml" "$VERSION" "$BUILD" "$URL" "$SIGNATURE" "$NOTES"
+# The feed itself is EdDSA-signed (apps require it: SURequireSignedFeed), so nobody who gets
+# write access to the releases repo can serve a crafted feed.
+"$SIGN_UPDATE" "$RELEASES_DIR/appcast.xml"
+"$SIGN_UPDATE" --verify "$RELEASES_DIR/appcast.xml"
 git -C "$RELEASES_DIR" add appcast.xml
 git -C "$RELEASES_DIR" commit -qm "Dal $VERSION"
 git -C "$RELEASES_DIR" push -q origin HEAD

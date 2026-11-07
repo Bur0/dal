@@ -37,7 +37,8 @@ final class AppState {
 
     init() {
         recent = UserDefaults.standard.stringArray(forKey: recentKey) ?? []
-        let openPaths = UserDefaults.standard.stringArray(forKey: openKey) ?? []
+        // A unit-test host must not open (and run git in) the user's repositories.
+        let openPaths = DalApp.isTestHost ? [] : (UserDefaults.standard.stringArray(forKey: openKey) ?? [])
         let selectedPath = UserDefaults.standard.string(forKey: selectedKey)
         if let data = UserDefaults.standard.data(forKey: groupsKey),
            let saved = try? JSONDecoder().decode([TabGroup].self, from: data) { groups = saved }

@@ -12,7 +12,13 @@ enum DebugSnapshot {
         if let script = env["DAL_SCRIPT"] { steps += script.split(separator: ";").map(String.init) }
         if let path = env["DAL_SNAPSHOT"] { steps += ["wait:\(env["DAL_SNAPSHOT_DELAY"] ?? "4")", "shot:\(path)"] }
         guard !steps.isEmpty else { return }
-        Task { await run(steps) }
+        // A background app gets App Nap'd and its timers stall; keep it awake while scripted.
+        let activity = ProcessInfo.processInfo.beginActivity(options: [.userInitiated, .latencyCritical],
+                                                             reason: "Debug snapshot script")
+        Task {
+            await run(steps)
+            ProcessInfo.processInfo.endActivity(activity)
+        }
     }
 
     private static func run(_ steps: [String]) async {
@@ -91,6 +97,10 @@ enum DebugSnapshot {
                 }
                 if let root = NSApp.windows.first(where: { $0.isVisible })?.contentView?.superview { walk(root) }
                 try? found.joined(separator: "\n").write(toFile: arg, atomically: true, encoding: .utf8)
+            case "dumpwindows":
+                let lines = NSApp.windows.map { "\($0.className) visible=\($0.isVisible) title=\($0.title) frame=\(NSStringFromRect($0.frame)) sheetParent=\($0.sheetParent != nil) content=\($0.contentView != nil)" }
+                let header = "policy=\(NSApp.activationPolicy().rawValue) testHost=\(DalApp.isTestHost) windows=\(NSApp.windows.count)"
+                try? ([header] + lines).joined(separator: "\n").write(toFile: arg, atomically: true, encoding: .utf8)
             case "dumpmenu":
                 let lines = NSApp.mainMenu?.items.flatMap { top in
                     (top.submenu?.items ?? []).map { "\(top.title) > \($0.title) [\($0.keyEquivalentModifierMask.rawValue) \($0.keyEquivalent)]" }

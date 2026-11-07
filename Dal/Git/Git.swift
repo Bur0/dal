@@ -3,13 +3,17 @@ import Foundation
 /// Thin async wrapper over the git CLI for one working tree.
 struct Git: Sendable {
     let dir: URL
-    /// Extra environment (the active profile's identity, SSH key and GitHub token).
+    /// Extra environment (the active profile's identity, SSH key and credential helper).
     var env: [String: String] = [:]
+    /// `-c` overrides that neutralise program-running settings of an untrusted repository.
+    var safety: [String] = []
 
     @discardableResult
     func run(_ args: [String], input: Data? = nil, allowExit: Set<Int32> = [0],
              env: [String: String] = [:]) async throws -> Data {
-        let base = ["-c", "color.ui=false", "-c", "core.quotepath=false", "-c", "advice.detachedHead=false"]
+        // log.showSignature would make `git log` run gpg.program; Dal never shows signatures.
+        let base = ["-c", "color.ui=false", "-c", "core.quotepath=false", "-c", "advice.detachedHead=false",
+                    "-c", "log.showSignature=false"] + safety
         let result = try await Shell.run("git", base + args, cwd: dir, input: input, env: self.env.merging(env) { $1 })
         guard allowExit.contains(result.status) else {
             var message = result.stderr.utf8.trimmed

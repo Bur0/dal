@@ -68,7 +68,7 @@ extension RepoStore {
     func checkout(_ target: String) {
         let before = currentPosition
         run("Checkout", success: "Checked out \(target)") { [self] in
-            try await git.run(["checkout", target, "--"])
+            try await git.run(["checkout", "--end-of-options", target, "--"])
             if let before { pushUndo(.checkout(before: before, after: target)) }
         }
     }
@@ -125,7 +125,7 @@ extension RepoStore {
                 if let sha { args.append(sha) }
                 try await git.run(args)
             } else {
-                try await git.run(["branch", name, sha ?? "HEAD"])
+                try await git.run(["branch", "--end-of-options", name, sha ?? "HEAD"])
             }
             let target = try await git.string(["rev-parse", name]).trimmed
             pushUndo(.createBranch(name: name, sha: target, previous: previous))
@@ -143,7 +143,7 @@ extension RepoStore {
     private func deleteBranch(_ ref: Ref, force: Bool) {
         Task { await enqueue("Delete branch") { [self] in
             do {
-                try await git.run(["branch", force ? "-D" : "-d", ref.name])
+                try await git.run(["branch", force ? "-D" : "-d", "--end-of-options", ref.name])
                 pushUndo(.deleteBranch(name: ref.name, sha: ref.target))
                 await refresh(full: true)
                 showToast("Deleted \(ref.name)")
@@ -169,7 +169,7 @@ extension RepoStore {
                          confirmLabel: "Delete Remote Branch", destructive: true) { [weak self] in
             guard let self else { return }
             run("Delete remote branch", success: "Deleted \(ref.name)") { [self] in
-                try await self.git.run(["push", remote, "--delete", ref.branchName])
+                try await self.git.run(["push", remote, "--delete", "refs/heads/\(ref.branchName)"])
             }
         }
     }
@@ -182,14 +182,14 @@ extension RepoStore {
                              action: { [weak self] name in
             guard let self else { return }
             run("Rename branch", success: "Renamed to \(name.trimmed)") { [self] in
-                try await self.git.run(["branch", "-m", ref.name, name.trimmed])
+                try await self.git.run(["branch", "-m", "--end-of-options", ref.name, name.trimmed])
             }
         })
     }
 
     func setUpstream(_ ref: Ref, to upstream: String) {
         run("Set upstream", success: "\(ref.name) now tracks \(upstream)") { [self] in
-            try await git.run(["branch", "--set-upstream-to", upstream, ref.name])
+            try await git.run(["branch", "--set-upstream-to=\(upstream)", "--end-of-options", ref.name])
         }
     }
 
@@ -207,11 +207,11 @@ extension RepoStore {
     }
 
     func merge(_ target: String) {
-        moveHead("Merge", success: "Merged \(target) into \(headBranch ?? "HEAD")", args: ["merge", "--no-edit", target])
+        moveHead("Merge", success: "Merged \(target) into \(headBranch ?? "HEAD")", args: ["merge", "--no-edit", "--end-of-options", target])
     }
 
     func rebaseCurrent(onto target: String) {
-        moveHead("Rebase", success: "Rebased \(headBranch ?? "HEAD") onto \(target)", args: ["rebase", target])
+        moveHead("Rebase", success: "Rebased \(headBranch ?? "HEAD") onto \(target)", args: ["rebase", "--end-of-options", target])
     }
 
     /// True when `branch` is an ancestor of `target`, i.e. it can move forward without a merge.
@@ -223,9 +223,9 @@ extension RepoStore {
     func fastForward(_ branch: String, to target: String) {
         run("Fast-forward", success: "Fast-forwarded \(branch)") { [self] in
             if branch == headBranch {
-                try await git.run(["merge", "--ff-only", target])
+                try await git.run(["merge", "--ff-only", "--end-of-options", target])
             } else {
-                try await git.run(["fetch", ".", "\(target):\(branch)"])
+                try await git.run(["fetch", "--end-of-options", ".", "\(target):refs/heads/\(branch)"])
             }
         }
     }
@@ -235,11 +235,11 @@ extension RepoStore {
         let before = currentPosition
         run("Merge", success: "Merged \(source) into \(target)") { [self] in
             if target != headBranch {
-                try await git.run(["checkout", target, "--"])
+                try await git.run(["checkout", "--end-of-options", target, "--"])
                 if let before { pushUndo(.checkout(before: before, after: target)) }
             }
             let head = await git.headSha()
-            try await git.run(["merge", "--no-edit", source])
+            try await git.run(["merge", "--no-edit", "--end-of-options", source])
             if let head, let after = await git.headSha(), after != head {
                 pushUndo(.moveHead(before: head, after: after, label: "Merge", mode: "keep", branch: target))
             }
@@ -250,7 +250,7 @@ extension RepoStore {
         let before = currentPosition
         run("Rebase", success: "Rebased \(branch) onto \(target)") { [self] in
             let tip = try await git.string(["rev-parse", "refs/heads/\(branch)"]).trimmed
-            try await git.run(["rebase", target, branch])
+            try await git.run(["rebase", "--end-of-options", target, branch])
             if let before, before != branch { pushUndo(.checkout(before: before, after: branch)) }
             if let after = await git.headSha(), after != tip {
                 pushUndo(.moveHead(before: tip, after: after, label: "Rebase", mode: "keep", branch: branch))
@@ -316,12 +316,13 @@ extension RepoStore {
             let n = name.trimmed
             if n.isEmpty { return "" }
             if n.contains(" ") { return "Tag names can't contain spaces." }
+            if n.hasPrefix("-") { return "Tag names can't start with a dash." }
             if self?.tags.contains(where: { $0.name == n }) == true { return "That tag already exists." }
             return nil
         }, action: { [weak self] name in
             guard let self else { return }
             run("Create tag", success: "Tagged \(name.trimmed)") { [self] in
-                try await self.git.run(["tag", name.trimmed, sha])
+                try await self.git.run(["tag", "--end-of-options", name.trimmed, sha])
             }
         })
     }
@@ -331,7 +332,7 @@ extension RepoStore {
                          confirmLabel: "Delete", destructive: true) { [weak self] in
             guard let self else { return }
             run("Delete tag", success: "Deleted tag \(ref.name)") { [self] in
-                try await self.git.run(["tag", "-d", ref.name])
+                try await self.git.run(["tag", "-d", "--end-of-options", ref.name])
             }
         }
     }
@@ -392,7 +393,7 @@ extension RepoStore {
             return args + [remote, "refs/heads/\(branch):refs/heads/\(upstream)"]
         }
         guard let remote = defaultRemote else { return nil }
-        return args + ["-u", remote, branch]
+        return args + ["-u", remote, "refs/heads/\(branch)"]
     }
 
     func push(branch: String, force: Bool = false) {
@@ -687,19 +688,19 @@ extension RepoStore {
             guard branchNow == expected || shaNow == expected else {
                 throw GitError(command: "undo", message: "You're no longer on \(undo ? after : before). Nothing was changed.", exitCode: 1)
             }
-            try await git.run(["checkout", undo ? before : after, "--"])
+            try await git.run(["checkout", "--end-of-options", undo ? before : after, "--"])
         case .createBranch(let name, let sha, let previous):
             if undo {
-                if let previous, headBranch == name { try await git.run(["checkout", previous, "--"]) }
+                if let previous, headBranch == name { try await git.run(["checkout", "--end-of-options", previous, "--"]) }
                 // Only deletes if the branch still points where Dal created it.
                 try await git.run(["update-ref", "-d", "refs/heads/\(name)", sha])
             } else if previous != nil {
                 try await git.run(["switch", "-c", name, sha])
             } else {
-                try await git.run(["branch", name, sha])
+                try await git.run(["branch", "--end-of-options", name, sha])
             }
         case .deleteBranch(let name, let sha):
-            if undo { try await git.run(["branch", name, sha]) }
+            if undo { try await git.run(["branch", "--end-of-options", name, sha]) }
             else { try await git.run(["update-ref", "-d", "refs/heads/\(name)", sha]) }
         }
     }
@@ -741,13 +742,18 @@ extension RepoStore {
         }
     }
 
+    /// Fetches GitHub's `refs/pull/N/head` with git itself rather than `gh pr checkout`, which
+    /// would run git (and its hooks) with the GitHub token in the environment.
     func checkoutPullRequest(_ pr: PullRequest) {
+        guard let remote = defaultRemote else { return }
         let before = currentPosition
-        run("Checkout PR", success: "Checked out #\(pr.number)") { [self] in
-            _ = try await GitHub.run(["pr", "checkout", "\(pr.number)"], in: url, env: self.githubEnv)
-            if let before, let after = await git.currentBranch(), after != before {
-                pushUndo(.checkout(before: before, after: after))
-            }
+        let existing = Set(localBranches.map(\.name))
+        let candidate = RepoStore.branchNameTyping(pr.headRefName)
+        let local = existing.contains(candidate) || candidate.isEmpty ? "pr-\(pr.number)" : candidate
+        run("Checkout PR", success: "Checked out #\(pr.number) as \(local)") { [self] in
+            try await git.run(["fetch", "--end-of-options", remote, "+refs/pull/\(pr.number)/head:refs/heads/\(local)"])
+            try await git.run(["checkout", "--end-of-options", local, "--"])
+            if let before, before != local { pushUndo(.checkout(before: before, after: local)) }
         }
     }
 
@@ -765,8 +771,35 @@ extension RepoStore {
         NSWorkspace.shared.activateFileViewerSelecting([target])
     }
 
+    /// Opens a repository file in its default app — but never runs apps, scripts or Terminal
+    /// command files from a repository (checkouts carry no quarantine flag, so Gatekeeper
+    /// wouldn't ask), and never follows a symlink out of the repository.
     func openFile(_ path: String) {
-        NSWorkspace.shared.open(url.appendingPathComponent(path))
+        let root = url.resolvingSymlinksInPath().standardizedFileURL.path
+        let target = url.appendingPathComponent(path).resolvingSymlinksInPath().standardizedFileURL
+        guard target.path.hasPrefix(root + "/") else {
+            showToast("\((path as NSString).lastPathComponent) points outside the repository", warning: true)
+            return
+        }
+        if RepoStore.mightExecute(target) {
+            NSWorkspace.shared.activateFileViewerSelecting([target])
+            showToast("Dal doesn't launch apps or scripts from repositories; showing it in Finder", warning: true)
+            return
+        }
+        NSWorkspace.shared.open(target)
+    }
+
+    static func mightExecute(_ file: URL) -> Bool {
+        let risky: Set<String> = ["app", "command", "terminal", "tool", "workflow", "action", "scpt", "applescript",
+                                  "scptd", "pkg", "mpkg", "dmg", "jar", "webloc", "inetloc", "fileloc", "url",
+                                  "prefpane", "saver", "kext", "plugin", "bundle", "framework", "osax", "shortcut"]
+        let ext = file.pathExtension.lowercased()
+        if risky.contains(ext) { return true }
+        var isDir: ObjCBool = false
+        if FileManager.default.fileExists(atPath: file.path, isDirectory: &isDir), isDir.boolValue { return true }
+        // Executables without an extension open in Terminal and run.
+        if ext.isEmpty && FileManager.default.isExecutableFile(atPath: file.path) { return true }
+        return false
     }
 
     func ignore(_ change: FileChange) {

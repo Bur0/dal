@@ -22,8 +22,9 @@ enum Shell {
 
     static func environment(_ extra: [String: String] = [:]) -> [String: String] {
         var env = ProcessInfo.processInfo.environment
-        let path = env["PATH"] ?? ""
-        env["PATH"] = path.isEmpty ? extraPath : extraPath + ":" + path
+        let inherited = (env["PATH"] ?? "").split(separator: ":", omittingEmptySubsequences: true)
+            .map(String.init).filter { $0.hasPrefix("/") }   // no ".", "" or relative entries
+        env["PATH"] = ([extraPath] + inherited).joined(separator: ":")
         env["GIT_TERMINAL_PROMPT"] = "0"
         env["GIT_EDITOR"] = "true"
         env["GIT_OPTIONAL_LOCKS"] = "0"

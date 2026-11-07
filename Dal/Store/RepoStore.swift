@@ -103,9 +103,47 @@ final class RepoStore: Identifiable {
     let url: URL
     var name: String { url.lastPathComponent }
 
-    /// Git bound to this repository with the active profile applied.
-    var git: Git { Git(dir: url, env: ProfileStore.shared.environment(for: url.path)) }
-    var githubEnv: [String: String] { ProfileStore.shared.environment(for: url.path) }
+    /// Git bound to this repository with the active profile applied, and with the repository's
+    /// program-running settings switched off until the user trusts it (see RepoTrust).
+    var git: Git {
+        let env = ProfileStore.shared.environment(for: url.path)
+        var safety = restricted ? safetyOverrides : []
+        // A profile's credential helper is set through the environment, which `-c` would override.
+        if env["GIT_CONFIG_COUNT"] != nil { safety = Self.dropping(prefix: "credential.", from: safety) }
+        return Git(dir: url, env: env, safety: safety)
+    }
+
+    // Trust
+    var trustFindings: [RepoTrust.Finding] = []
+    var trusted = false
+    var restricted: Bool { !trusted && !trustFindings.isEmpty }
+    @ObservationIgnored private var safetyOverrides: [String] = []
+
+    private static func dropping(prefix: String, from args: [String]) -> [String] {
+        var out: [String] = []
+        var i = 0
+        while i < args.count {
+            if args[i] == "-c", i + 1 < args.count, args[i + 1].hasPrefix(prefix) { i += 2; continue }
+            out.append(args[i]); i += 1
+        }
+        return out
+    }
+
+    /// Reads the repository's config (which runs nothing) before any other git command.
+    func assessTrust() async {
+        trusted = RepoTrust.isTrusted(url.path)
+        let findings = await RepoTrust.findings(in: url)
+        safetyOverrides = RepoTrust.overrides(for: findings, globalHelpers: await RepoTrust.globalCredentialHelpers())
+        if findings != trustFindings { trustFindings = findings }
+    }
+
+    func trustRepository() {
+        RepoTrust.trust(url.path)
+        trusted = true
+        showToast("\(name) is trusted; its git settings now apply")
+        Task { await refresh(full: true) }
+    }
+    var githubEnv: [String: String] { ProfileStore.shared.githubEnvironment(for: url.path) }
 
     // Repository data
     var commits: [Commit] = []
@@ -196,8 +234,10 @@ final class RepoStore: Identifiable {
     func activate() {
         guard watcher == nil else { return }
         let firstLoad = !loaded
-        startWatching()
         Task {
+            // Decide what's safe to run first; only then start watching and running git.
+            await assessTrust()
+            startWatching()
             await refresh(full: true)
             // Linked worktrees and submodules keep their git dir elsewhere; watch it too so
             // commits and checkouts made in Terminal show up.
@@ -229,6 +269,9 @@ final class RepoStore: Identifiable {
         let gitDirs = ([gitDir?.path].compactMap { $0 } + watchedGitDirs).map { $0.hasSuffix("/") ? $0 : $0 + "/" }
         let touchesGit = paths.contains { path in
             path.contains("/.git/") || path.hasSuffix("/.git") || gitDirs.contains { path.hasPrefix($0) }
+        }
+        if paths.contains(where: { $0.hasSuffix("/config") && touchesGit }) {
+            Task { await assessTrust() }
         }
         scheduleRefresh(full: touchesGit)
     }

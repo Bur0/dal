@@ -41,8 +41,8 @@ targets:
         SUScheduledCheckInterval: 3600
         SUAutomaticallyUpdate: true
         SUAllowsAutomaticUpdates: true
-        NSAppTransportSecurity:
-          NSAllowsLocalNetworking: true
+        SURequireSignedFeed: true
+        SUVerifyUpdateBeforeExtraction: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.burakalpkara.dal

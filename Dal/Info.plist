@@ -26,11 +26,6 @@
 	<string>public.app-category.developer-tools</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>14.0</string>
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsLocalNetworking</key>
-		<true/>
-	</dict>
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 Burak Alp Kara. MIT License.</string>
 	<key>SUAllowsAutomaticUpdates</key>
@@ -43,7 +38,11 @@
 	<string>https://raw.githubusercontent.com/Bur0/dal-releases/main/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>8eWChZy2gKLttvejAfTkOxqTVKFWiqr+oE8XDCwJRss=</string>
+	<key>SURequireSignedFeed</key>
+	<true/>
 	<key>SUScheduledCheckInterval</key>
 	<integer>3600</integer>
+	<key>SUVerifyUpdateBeforeExtraction</key>
+	<true/>
 </dict>
 </plist>

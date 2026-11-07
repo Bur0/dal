@@ -88,8 +88,14 @@ struct CloneSheet: View {
             Text("Clone a repository").font(.system(size: 15, weight: .semibold))
             VStack(alignment: .leading, spacing: 5) {
                 Text("URL").font(.system(size: 11, weight: .medium)).foregroundStyle(Theme.secondaryText)
-                TextField("", text: $remote, prompt: Text(verbatim: "https://github.com/owner/repo.git"))
-                    .textFieldStyle(.roundedBorder)
+                HStack {
+                    TextField("", text: $remote, prompt: Text(verbatim: "https://github.com/owner/repo.git"))
+                        .textFieldStyle(.roundedBorder)
+                    // The clipboard is read only when asked — never in the background.
+                    Button("Paste") {
+                        if let clip = NSPasteboard.general.string(forType: .string)?.trimmed { remote = clip }
+                    }
+                }
                     .onChange(of: remote) { _, _ in if !nameEdited { name = derivedName } }
             }
             VStack(alignment: .leading, spacing: 5) {
@@ -134,14 +140,6 @@ struct CloneSheet: View {
         }
         .padding(20)
         .frame(width: 520)
-        .onAppear {
-            // A git URL on the clipboard is almost always what you're about to clone.
-            if remote.isEmpty, let clip = NSPasteboard.general.string(forType: .string)?.trimmed,
-               !clip.contains(" "), !clip.contains("\n"),
-               clip.hasPrefix("git@") || (clip.hasPrefix("https://") && (clip.hasSuffix(".git") || clip.contains("github.com/") || clip.contains("gitlab.com/"))) {
-                remote = clip
-            }
-        }
     }
 
     private func choose() {
