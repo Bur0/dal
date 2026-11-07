@@ -47,6 +47,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.burakalpkara.dal
         PRODUCT_NAME: Dal
+        PRODUCT_MODULE_NAME: Dal
         CODE_SIGN_IDENTITY: "-"
         CODE_SIGN_STYLE: Manual
         DEVELOPMENT_TEAM: ""
@@ -54,6 +55,12 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         COMBINE_HIDPI_IMAGES: YES
         ENABLE_USER_SCRIPT_SANDBOXING: NO
+      # Debug builds are a separate app ("Dal Debug", own bundle id): running or quitting them
+      # never touches the installed Dal, and they keep their own settings.
+      configs:
+        Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: com.burakalpkara.dal.debug
+          PRODUCT_NAME: Dal Debug
     dependencies:
       - package: Sparkle
 
@@ -67,6 +74,10 @@ targets:
         CODE_SIGN_IDENTITY: "-"
         CODE_SIGN_STYLE: Manual
         GENERATE_INFOPLIST_FILE: YES
+      configs:
+        Debug:
+          TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Dal Debug.app/Contents/MacOS/Dal Debug"
+          BUNDLE_LOADER: "$(TEST_HOST)"
     dependencies:
       - target: Dal
 
