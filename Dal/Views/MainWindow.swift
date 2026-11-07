@@ -126,6 +126,7 @@ struct TabBar: View {
                 .foregroundStyle(.secondary)
                 .help("All repositories (⌘P)")
             }
+            VersionBadge()
             ProfileMenu()
                 .padding(.horizontal, 10)
         }
@@ -146,6 +147,32 @@ struct TabDragItem: Codable, Transferable {
 private struct TabsWidthKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
+/// The running version, always visible in the tab bar; its menu checks for updates.
+struct VersionBadge: View {
+    @EnvironmentObject private var updater: Updater
+
+    var body: some View {
+        Menu {
+            Text("Dal \(updater.version)")
+            Divider()
+            Button("Check for Updates…") { updater.checkForUpdates() }
+                .disabled(!updater.canCheckForUpdates)
+            Button("Release Notes") {
+                if let url = URL(string: "https://github.com/Bur0/dal-releases/releases") { NSWorkspace.shared.open(url) }
+            }
+        } label: {
+            Text("v\(updater.shortVersion)")
+                .font(.system(size: 11).monospacedDigit())
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .foregroundStyle(.tertiary)
+        .help("Dal \(updater.version) — click to check for updates")
+        .accessibilityLabel("Dal version \(updater.version)")
+    }
 }
 
 private struct GroupChip: View {
@@ -443,6 +470,7 @@ struct QuickSwitcher: View {
 
 struct WelcomeView: View {
     @Environment(AppState.self) private var app
+    @EnvironmentObject private var updater: Updater
     @State private var dropTargeted = false
 
     var body: some View {
@@ -459,6 +487,9 @@ struct WelcomeView: View {
                         Text("Git client for macOS")
                             .font(.system(size: 13))
                             .foregroundStyle(.secondary)
+                        Text("Version \(updater.version)")
+                            .font(.system(size: 11).monospacedDigit())
+                            .foregroundStyle(.tertiary)
                     }
                 }
                 .padding(.leading, 4)

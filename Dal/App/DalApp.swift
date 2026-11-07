@@ -20,6 +20,7 @@ struct DalApp: App {
         Window("Dal", id: "main") {
             MainWindow()
                 .environment(app)
+                .environmentObject(updater)
                 .frame(minWidth: 980, minHeight: 600)
         }
         .windowStyle(.hiddenTitleBar)

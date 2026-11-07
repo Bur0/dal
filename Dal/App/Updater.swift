@@ -27,6 +27,11 @@ final class Updater: ObservableObject {
         set { controller.updater.automaticallyChecksForUpdates = newValue }
     }
 
+    /// "0.1.2" — what people mean by "which version am I on".
+    var shortVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+    }
+
     var version: String {
         let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
         let b = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
