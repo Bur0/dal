@@ -131,7 +131,35 @@ final class PatchBuilderTests: XCTestCase {
 
     func testNothingSelectedReturnsNil() {
         let diff = Parse.diff(raw)
-        XCTAssertNil(PatchBuilder.patch(header: diff.header, hunk: diff.hunks[0], selected: [], reverse: false))
+        XCTAssertNil(try PatchBuilder.patch(header: diff.header, hunk: diff.hunks[0], selected: [], reverse: false))
+    }
+}
+
+final class ReviewRegressionTests: XCTestCase {
+    func testWorktreeRenameReadsOldPath() {
+        // Intent-to-add renames show up as " R new\0old\0".
+        let status = Parse.status(" R new.swift\0old.swift\0 M other.txt\0")
+        XCTAssertEqual(status.unstaged.map(\.path), ["new.swift", "other.txt"])
+        XCTAssertEqual(status.unstaged.first?.oldPath, "old.swift")
+        XCTAssertTrue(status.staged.isEmpty)
+    }
+
+    func testUnterminatedConflictKeepsAllLines() {
+        let text = "intro\n<<<<<<< not really\nquoted line\nend"
+        let chunks = ConflictParser.parse(text)
+        XCTAssertFalse(chunks.contains(where: \.isConflict))
+        XCTAssertEqual(ConflictParser.resolve(chunks, choices: [:]), text)
+    }
+
+    func testLongerMarkersAreNotConflicts() {
+        let text = "a\n<<<<<<<< eight\nb"
+        XCTAssertFalse(ConflictParser.parse(text).contains(where: \.isConflict))
+    }
+
+    func testPartialPatchRefusedForRenames() {
+        XCTAssertFalse(PatchBuilder.supportsPartial(["diff --git a/x b/y", "rename from x", "rename to y"]))
+        XCTAssertFalse(PatchBuilder.supportsPartial(["diff --git a/x b/x", "new file mode 100644"]))
+        XCTAssertTrue(PatchBuilder.supportsPartial(["diff --git a/x b/x", "index 1..2 100644"]))
     }
 }
 

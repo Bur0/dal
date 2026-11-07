@@ -2,7 +2,8 @@ import SwiftUI
 
 struct WorkingChangesView: View {
     @Bindable var store: RepoStore
-    @FocusState private var summaryFocused: Bool
+    private enum Field { case summary, body }
+    @FocusState private var focus: Field?
     @AppStorage("changes.unstagedOpen") private var unstagedOpen = true
     @AppStorage("changes.stagedOpen") private var stagedOpen = true
 
@@ -13,7 +14,8 @@ struct WorkingChangesView: View {
             header
             Divider()
             ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
+                // Lazy, so a working tree with thousands of changed files stays responsive.
+                LazyVStack(alignment: .leading, spacing: 0) {
                     if !status.conflicted.isEmpty {
                         conflictSection
                     }
@@ -83,8 +85,9 @@ struct WorkingChangesView: View {
         .padding(.bottom, 8)
     }
 
+    @ViewBuilder
     private func fileSection(title: String, files: [FileChange], staged: Bool, isOpen: Binding<Bool>) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
+        Group {
             HStack(spacing: 6) {
                 Button {
                     withAnimation(.easeOut(duration: 0.15)) { isOpen.wrappedValue.toggle() }
@@ -124,10 +127,10 @@ struct WorkingChangesView: View {
                             selected: store.fileFocus == .working(change, staged: staged),
                             actionTitle: staged ? "Unstage" : "Stage",
                             actionSymbol: staged ? "minus" : "plus",
-                            action: { staged ? store.unstage(change) : store.stage(change) }) {
+                            action: { staged ? store.unstage(change) : store.stage(change) },
+                            onDoubleClick: { staged ? store.unstage(change) : store.stage(change) }) {
                         store.fileFocus = .working(change, staged: staged)
                     }
-                    .onTapGesture(count: 2) { staged ? store.unstage(change) : store.stage(change) }
                     .contextMenu { fileMenu(change, staged: staged) }
                 }
                 if files.isEmpty {
@@ -138,8 +141,8 @@ struct WorkingChangesView: View {
                         .padding(.vertical, 4)
                 }
             }
+            Color.clear.frame(height: 8)
         }
-        .padding(.bottom, 8)
     }
 
     @ViewBuilder private func fileMenu(_ change: FileChange, staged: Bool) -> some View {
@@ -174,8 +177,8 @@ struct WorkingChangesView: View {
                 TextField("Summary", text: $store.commitSummary)
                     .textFieldStyle(.plain)
                     .font(.system(size: 13))
-                    .focused($summaryFocused)
-                    .onSubmit { store.commit() }
+                    .focused($focus, equals: .summary)
+                    .onSubmit { focus = .body }   // ⌘↩ commits; Return moves on to the description
                 Text("\(72 - store.commitSummary.count)")
                     .font(.system(size: 10.5).monospacedDigit())
                     .foregroundStyle(store.commitSummary.count > 72 ? Theme.deleted : Color.secondary.opacity(0.6))
@@ -184,10 +187,11 @@ struct WorkingChangesView: View {
             .padding(.horizontal, 9)
             .frame(height: 30)
             .background(RoundedRectangle(cornerRadius: 6).fill(Theme.panel))
-            .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(summaryFocused ? Color.accentColor.opacity(0.7) : Theme.separator))
+            .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(focus == .summary ? Color.accentColor.opacity(0.7) : Theme.separator))
 
             ZStack(alignment: .topLeading) {
                 TextEditor(text: $store.commitBody)
+                    .focused($focus, equals: .body)
                     .font(.system(size: 12))
                     .scrollContentBackground(.hidden)
                     .padding(.horizontal, 4)
@@ -222,7 +226,7 @@ struct WorkingChangesView: View {
             .help(commitHelp)
         }
         .padding(14)
-        .onReceive(NotificationCenter.default.publisher(for: .focusCommitMessage)) { _ in summaryFocused = true }
+        .onReceive(NotificationCenter.default.publisher(for: .focusCommitMessage)) { _ in focus = .summary }
     }
 
     private var commitButtonTitle: String {

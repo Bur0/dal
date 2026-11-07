@@ -30,7 +30,7 @@ enum Parse {
         return commits
     }
 
-    static let refFormat = "%(refname)%1f%(objectname)%1f%(*objectname)%1f%(upstream:short)%1f%(upstream:track,nobracket)%1f%(HEAD)"
+    static let refFormat = "%(refname)%1f%(objectname)%1f%(*objectname)%1f%(upstream:short)%1f%(upstream:track,nobracket)%1f%(HEAD)%1f%(upstream:remotename)%1f%(upstream:remoteref)"
 
     static func refs(_ text: String) -> [Ref] {
         var result: [Ref] = []
@@ -54,6 +54,10 @@ enum Parse {
             let t = track(f[4])
             ref.ahead = t.ahead; ref.behind = t.behind; ref.upstreamGone = t.gone
             ref.isHead = f[5] == "*"
+            if f.count >= 8, !f[6].isEmpty {
+                ref.upstreamRemote = f[6]
+                ref.upstreamBranch = f[7].hasPrefix("refs/heads/") ? String(f[7].dropFirst("refs/heads/".count)) : nil
+            }
             result.append(ref)
         }
         return result
@@ -84,7 +88,7 @@ enum Parse {
             let y = entry[entry.index(after: entry.startIndex)]
             let path = String(entry.dropFirst(3))
             var oldPath: String?
-            if x == "R" || x == "C" {
+            if x == "R" || x == "C" || y == "R" || y == "C" {
                 if i < tokens.count { oldPath = tokens[i]; i += 1 }
             }
             let code = String([x, y])
@@ -98,10 +102,12 @@ enum Parse {
             }
             if code == "!!" { continue }
             if x != " " {
-                status.staged.append(FileChange(path: path, oldPath: oldPath, kind: ChangeKind(code: x)))
+                status.staged.append(FileChange(path: path, oldPath: (x == "R" || x == "C") ? oldPath : nil,
+                                                kind: ChangeKind(code: x)))
             }
             if y != " " {
-                status.unstaged.append(FileChange(path: path, kind: ChangeKind(code: y)))
+                status.unstaged.append(FileChange(path: path, oldPath: (y == "R" || y == "C") ? oldPath : nil,
+                                                  kind: ChangeKind(code: y)))
             }
         }
         status.staged.sort { $0.path.localizedStandardCompare($1.path) == .orderedAscending }

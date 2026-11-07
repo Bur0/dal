@@ -29,6 +29,11 @@ enum Shell {
         env["GIT_OPTIONAL_LOCKS"] = "0"
         env["GH_PROMPT_DISABLED"] = "1"
         env["NO_COLOR"] = "1"
+        // Paths Dal passes are file names, never patterns: `a[1].txt` must not also match `a1.txt`.
+        env["GIT_LITERAL_PATHSPECS"] = "1"
+        // Abort HTTP transfers that stall instead of hanging the UI forever.
+        env["GIT_HTTP_LOW_SPEED_LIMIT"] = "1000"
+        env["GIT_HTTP_LOW_SPEED_TIME"] = "60"
         if env["LANG"] == nil { env["LANG"] = "en_US.UTF-8" }
         for (k, v) in extra { env[k] = v }
         return env
@@ -57,6 +62,8 @@ enum Shell {
                     continuation.resume(throwing: error)
                     return
                 }
+                let token = ProcessRegistry.shared.add(process, tag: cwd?.path)
+                defer { ProcessRegistry.shared.remove(token) }
 
                 if let input {
                     DispatchQueue.global().async {
@@ -79,6 +86,30 @@ enum Shell {
                                                       status: process.terminationStatus))
             }
         }
+    }
+}
+
+/// Running child processes, so a long operation (a stuck push, a hook) can be cancelled.
+final class ProcessRegistry: @unchecked Sendable {
+    static let shared = ProcessRegistry()
+    private let lock = NSLock()
+    private var running: [UUID: (Process, String?)] = [:]
+
+    func add(_ process: Process, tag: String?) -> UUID {
+        let id = UUID()
+        lock.lock(); running[id] = (process, tag); lock.unlock()
+        return id
+    }
+
+    func remove(_ id: UUID) {
+        lock.lock(); running[id] = nil; lock.unlock()
+    }
+
+    func terminate(tag: String) {
+        lock.lock()
+        let targets = running.values.filter { $0.1 == tag }.map(\.0)
+        lock.unlock()
+        for process in targets where process.isRunning { process.terminate() }
     }
 }
 

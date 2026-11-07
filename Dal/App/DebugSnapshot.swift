@@ -59,6 +59,11 @@ enum DebugSnapshot {
             case "collapse":
                 let app = AppState.shared
                 if let i = Int(arg), i < app.groups.count { app.toggleCollapsed(app.groups[i]) }
+            case "dumpmenu":
+                let lines = NSApp.mainMenu?.items.flatMap { top in
+                    (top.submenu?.items ?? []).map { "\(top.title) > \($0.title) [\($0.keyEquivalentModifierMask.rawValue) \($0.keyEquivalent)]" }
+                } ?? []
+                try? lines.joined(separator: "\n").write(toFile: arg, atomically: true, encoding: .utf8)
             case "switcher":
                 AppState.shared.showSwitcher = true
             case "quit":

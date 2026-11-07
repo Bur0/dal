@@ -8,25 +8,51 @@ extension RepoStore {
         Task { await perform(title, success: success, body) }
     }
 
-    func perform(_ title: String, success: String? = nil, _ body: () async throws -> Void) async {
-        busy = title
-        do {
-            try await body()
-            busy = nil
-            await refresh()
-            if let success { showToast(success) }
-        } catch {
-            busy = nil
-            await refresh()
-            if let ongoing, title.lowercased().contains(ongoing.command) || ongoing == .merge || ongoing == .rebase {
-                if !status.conflicted.isEmpty {
-                    showToast("\(status.conflicted.count) conflicted file\(status.conflicted.count == 1 ? "" : "s") — resolve to continue")
+    /// Mutating git commands run one at a time, in order: two quick clicks never race for
+    /// `index.lock`, and `busy` stays set until the last queued command has finished.
+    func enqueue(_ title: String, _ body: @escaping () async -> Void) async {
+        let previous = operationTail
+        let task = Task { @MainActor [weak self] in
+            await previous?.value
+            guard let self else { return }
+            self.runningOperations += 1
+            self.busy = title
+            await body()
+            self.runningOperations -= 1
+            if self.runningOperations == 0 { self.busy = nil }
+        }
+        operationTail = task
+        await task.value
+    }
+
+    func perform(_ title: String, success: String? = nil, _ body: @escaping () async throws -> Void) async {
+        await enqueue(title) { [self] in
+            do {
+                try await body()
+                await refresh(full: true)
+                if let success { showToast(success) }
+            } catch {
+                await refresh(full: true)
+                if cancelled {
+                    cancelled = false
+                    showToast("\(title) cancelled", warning: true)
+                    return
+                }
+                if ongoing != nil, !status.conflicted.isEmpty {
+                    showToast("\(status.conflicted.count) conflicted file\(status.conflicted.count == 1 ? "" : "s") — resolve to continue",
+                              warning: true)
                     selection = .wip
                     return
                 }
+                alert = AppAlert(title: "\(title) failed", message: error.localizedDescription)
             }
-            alert = AppAlert(title: "\(title) failed", message: error.localizedDescription)
         }
+    }
+
+    /// Stops the git/gh process behind the current operation (a stuck push, a slow hook).
+    func cancelRunning() {
+        cancelled = true
+        ProcessRegistry.shared.terminate(tag: url.path)
     }
 
     private func pushUndo(_ action: UndoAction) {
@@ -42,7 +68,7 @@ extension RepoStore {
     func checkout(_ target: String) {
         let before = currentPosition
         run("Checkout", success: "Checked out \(target)") { [self] in
-            try await git.run(["checkout", target])
+            try await git.run(["checkout", target, "--"])
             if let before { pushUndo(.checkout(before: before, after: target)) }
         }
     }
@@ -106,16 +132,13 @@ extension RepoStore {
     }
 
     private func deleteBranch(_ ref: Ref, force: Bool) {
-        Task {
-            busy = "Delete branch"
+        Task { await enqueue("Delete branch") { [self] in
             do {
                 try await git.run(["branch", force ? "-D" : "-d", ref.name])
                 pushUndo(.deleteBranch(name: ref.name, sha: ref.target))
-                busy = nil
-                await refresh()
+                await refresh(full: true)
                 showToast("Deleted \(ref.name)")
             } catch {
-                busy = nil
                 let message = error.localizedDescription
                 if !force && message.contains("not fully merged") {
                     alert = AppAlert(title: "\(ref.name) isn't fully merged",
@@ -127,7 +150,7 @@ extension RepoStore {
                     alert = AppAlert(title: "Delete branch failed", message: message)
                 }
             }
-        }
+        } }
     }
 
     func deleteRemoteBranch(_ ref: Ref) {
@@ -162,12 +185,13 @@ extension RepoStore {
 
     // MARK: Merge / rebase / cherry-pick
 
-    private func moveHead(_ title: String, success: String, args: [String]) {
+    private func moveHead(_ title: String, success: String, args: [String], undoMode: String = "keep") {
         let before = headSha
+        let branch = headBranch
         run(title, success: success) { [self] in
             try await git.run(args)
             if let before, let after = await git.headSha(), after != before {
-                pushUndo(.moveHead(before: before, after: after, label: title))
+                pushUndo(.moveHead(before: before, after: after, label: title, mode: undoMode, branch: branch))
             }
         }
     }
@@ -178,6 +202,12 @@ extension RepoStore {
 
     func rebaseCurrent(onto target: String) {
         moveHead("Rebase", success: "Rebased \(headBranch ?? "HEAD") onto \(target)", args: ["rebase", target])
+    }
+
+    /// True when `branch` is an ancestor of `target`, i.e. it can move forward without a merge.
+    func canFastForward(_ branch: String, to target: String) async -> Bool {
+        // Exit 0 = ancestor; 1 = not; anything else (bad ref) also means no.
+        (try? await git.run(["merge-base", "--is-ancestor", "refs/heads/\(branch)", target])) != nil
     }
 
     func fastForward(_ branch: String, to target: String) {
@@ -195,20 +225,26 @@ extension RepoStore {
         let before = currentPosition
         run("Merge", success: "Merged \(source) into \(target)") { [self] in
             if target != headBranch {
-                try await git.run(["checkout", target])
+                try await git.run(["checkout", target, "--"])
                 if let before { pushUndo(.checkout(before: before, after: target)) }
             }
             let head = await git.headSha()
             try await git.run(["merge", "--no-edit", source])
             if let head, let after = await git.headSha(), after != head {
-                pushUndo(.moveHead(before: head, after: after, label: "Merge"))
+                pushUndo(.moveHead(before: head, after: after, label: "Merge", mode: "keep", branch: target))
             }
         }
     }
 
     func rebase(_ branch: String, onto target: String) {
+        let before = currentPosition
         run("Rebase", success: "Rebased \(branch) onto \(target)") { [self] in
+            let tip = try await git.string(["rev-parse", "refs/heads/\(branch)"]).trimmed
             try await git.run(["rebase", target, branch])
+            if let before, before != branch { pushUndo(.checkout(before: before, after: branch)) }
+            if let after = await git.headSha(), after != tip {
+                pushUndo(.moveHead(before: tip, after: after, label: "Rebase", mode: "keep", branch: branch))
+            }
         }
     }
 
@@ -228,8 +264,9 @@ extension RepoStore {
         let doReset = { [weak self] in
             guard let self else { return }
             self.moveHead("Reset", success: "Reset \(self.headBranch ?? "HEAD") to \(String(sha.prefix(7)))",
-                          args: ["reset", "--\(mode)", sha])
+                          args: ["reset", "--\(mode)", sha], undoMode: mode == "hard" ? "keep" : mode)
         }
+        _ = mode
         if mode == "hard" {
             alert = AppAlert(title: "Hard reset to \(String(sha.prefix(7)))?",
                              message: "Uncommitted changes will be discarded. Committed work stays reachable via Undo.",
@@ -322,7 +359,7 @@ extension RepoStore {
         run("Pull", success: "Pulled \(branch)") { [self] in
             try await git.run(mode.args)
             if let before, let after = await git.headSha(), before != after {
-                pushUndo(.moveHead(before: before, after: after, label: "Pull"))
+                pushUndo(.moveHead(before: before, after: after, label: "Pull", mode: "keep", branch: branch))
             }
         }
     }
@@ -335,30 +372,34 @@ extension RepoStore {
         push(branch: branch, force: force)
     }
 
+    /// Where `git push` should send a branch: its upstream's remote and branch when it has one
+    /// (fork workflows track `fork/feature`), otherwise the default remote with `-u`.
+    func pushArguments(for branch: String, force: Bool) -> [String]? {
+        var args = ["push"]
+        if force { args.append("--force-with-lease") }
+        let ref = localBranches.first { $0.name == branch }
+        if let remote = ref?.upstreamRemote, remote != ".", let upstream = ref?.upstreamBranch {
+            return args + [remote, "refs/heads/\(branch):refs/heads/\(upstream)"]
+        }
+        guard let remote = defaultRemote else { return nil }
+        return args + ["-u", remote, branch]
+    }
+
     func push(branch: String, force: Bool = false) {
-        guard let remote = defaultRemote else {
+        guard let args = pushArguments(for: branch, force: force) else {
             alert = AppAlert(title: "No remote", message: "Add a remote with `git remote add origin <url>` first.")
             return
         }
-        let hasUpstream = localBranches.first { $0.name == branch }?.upstream != nil
-        Task {
-            busy = "Push"
+        Task { await enqueue("Push") { [self] in
             do {
-                var args = ["push"]
-                if force { args.append("--force-with-lease") }
-                if hasUpstream {
-                    args += [remote, branch]
-                } else {
-                    args += ["-u", remote, branch]
-                }
                 try await git.run(args)
-                busy = nil
-                await refresh()
-                showToast(force ? "Force pushed \(branch)" : "Pushed \(branch) to \(remote)")
+                await refresh(full: true)
+                let target = localBranches.first { $0.name == branch }?.upstream ?? branch
+                showToast(force ? "Force pushed \(branch)" : "Pushed \(branch) → \(target)")
                 Task { await loadGitHub() }
             } catch {
-                busy = nil
-                await refresh()
+                await refresh(full: true)
+                if cancelled { cancelled = false; showToast("Push cancelled", warning: true); return }
                 let message = error.localizedDescription
                 if !force && (message.contains("rejected") || message.contains("non-fast-forward")) {
                     alert = AppAlert(
@@ -371,7 +412,7 @@ extension RepoStore {
                     alert = AppAlert(title: "Push failed", message: message)
                 }
             }
-        }
+        } }
     }
 
     // MARK: Stash
@@ -476,8 +517,15 @@ extension RepoStore {
 
     func apply(_ action: HunkAction, diff: FileDiff, hunk: DiffHunk, lines: Set<Int>) {
         let selected = lines.isEmpty ? hunk.changeIDs : lines
-        guard let patch = PatchBuilder.patch(header: diff.header, hunk: hunk, selected: selected,
-                                             reverse: action != .stage) else { return }
+        let patch: String
+        do {
+            guard let built = try PatchBuilder.patch(header: diff.header, hunk: hunk, selected: selected,
+                                                     reverse: action != .stage) else { return }
+            patch = built
+        } catch {
+            alert = AppAlert(title: "Can't apply these lines", message: error.localizedDescription)
+            return
+        }
         let perform = { [weak self] in
             guard let self else { return }
             run(action == .stage ? "Stage lines" : action == .unstage ? "Unstage lines" : "Discard lines") { [self] in
@@ -525,8 +573,8 @@ extension RepoStore {
             amend = false
             if let after = await git.headSha() {
                 pushUndo(isAmend && before != nil
-                         ? .moveHead(before: before!, after: after, label: "Amend")
-                         : .commit(before: before, after: after))
+                         ? .moveHead(before: before!, after: after, label: "Amend", mode: "soft", branch: headBranch)
+                         : .commit(before: before, after: after, branch: headBranch))
             }
         }
     }
@@ -545,8 +593,9 @@ extension RepoStore {
         run("Resolve", success: "Took \(ours ? "current" : "incoming") version of \(change.fileName)") { [self] in
             let code = change.conflictCode ?? "UU"
             // Deleted-on-one-side conflicts have no file content for that side.
-            let deletedOurs = code == "DU" || code == "DD"
-            let deletedTheirs = code == "UD" || code == "DD"
+            // UA = added by them (no "ours"), AU = added by us (no "theirs").
+            let deletedOurs = code == "DU" || code == "DD" || code == "UA"
+            let deletedTheirs = code == "UD" || code == "DD" || code == "AU"
             if (ours && deletedOurs) || (!ours && deletedTheirs) {
                 try await git.run(["rm", "-q", "--", change.path])
             } else {
@@ -595,30 +644,53 @@ extension RepoStore {
         }
     }
 
+    /// Refuses to undo/redo when HEAD is no longer where the action left it — otherwise a reset
+    /// would land on whatever branch is checked out now.
+    private func ensureHead(_ sha: String?, branch: String?) async throws {
+        let head = await git.headSha()
+        let current = await git.currentBranch()
+        guard head == sha, branch == nil || current == branch else {
+            throw GitError(command: "undo",
+                           message: "The repository changed since this action (HEAD is now \(current ?? head.map { String($0.prefix(7)) } ?? "unborn")). Nothing was changed.",
+                           exitCode: 1)
+        }
+    }
+
     private func revert(_ action: UndoAction, undo: Bool) async throws {
         switch action {
-        case .commit(let before, let after):
+        case .commit(let before, let after, let branch):
             if undo {
+                try await ensureHead(after, branch: branch)
                 if let before { try await git.run(["reset", "--soft", before]) }
                 else { try await git.run(["update-ref", "-d", "HEAD"]) }
             } else {
+                try await ensureHead(before, branch: branch)
                 try await git.run(["reset", "--soft", after])
             }
-        case .moveHead(let before, let after, _):
-            try await git.run(["reset", "--keep", undo ? before : after])
+        case .moveHead(let before, let after, _, let mode, let branch):
+            try await ensureHead(undo ? after : before, branch: branch)
+            try await git.run(["reset", "--\(mode)", undo ? before : after])
         case .checkout(let before, let after):
-            try await git.run(["checkout", undo ? before : after])
+            let branchNow = await git.currentBranch()
+            let shaNow = await git.headSha()
+            let expected = undo ? after : before
+            guard branchNow == expected || shaNow == expected else {
+                throw GitError(command: "undo", message: "You're no longer on \(undo ? after : before). Nothing was changed.", exitCode: 1)
+            }
+            try await git.run(["checkout", undo ? before : after, "--"])
         case .createBranch(let name, let sha, let previous):
             if undo {
-                if let previous, headBranch == name { try await git.run(["checkout", previous]) }
-                try await git.run(["branch", "-D", name])
+                if let previous, headBranch == name { try await git.run(["checkout", previous, "--"]) }
+                // Only deletes if the branch still points where Dal created it.
+                try await git.run(["update-ref", "-d", "refs/heads/\(name)", sha])
             } else if previous != nil {
                 try await git.run(["switch", "-c", name, sha])
             } else {
                 try await git.run(["branch", name, sha])
             }
         case .deleteBranch(let name, let sha):
-            if undo { try await git.run(["branch", name, sha]) } else { try await git.run(["branch", "-D", name]) }
+            if undo { try await git.run(["branch", name, sha]) }
+            else { try await git.run(["update-ref", "-d", "refs/heads/\(name)", sha]) }
         }
     }
 
@@ -629,13 +701,20 @@ extension RepoStore {
         showCreatePR = true
     }
 
-    func createPullRequest(title: String, body: String, base: String, head: String, draft: Bool) async -> Bool {
-        busy = "Create pull request"
-        defer { busy = nil }
+    /// Returns an error message to show in the sheet, or nil on success.
+    func createPullRequest(title: String, body: String, base: String, head: String, draft: Bool) async -> String? {
+        var failure: String?
+        await enqueue("Create pull request") { [self] in
+            failure = await createPullRequestNow(title: title, body: body, base: base, head: head, draft: draft)
+        }
+        return failure
+    }
+
+    private func createPullRequestNow(title: String, body: String, base: String, head: String, draft: Bool) async -> String? {
         do {
             let ref = localBranches.first { $0.name == head }
-            if let ref, ref.upstream == nil || ref.ahead > 0, let remote = defaultRemote {
-                try await git.run(["push", "-u", remote, head])
+            if let ref, ref.upstream == nil || ref.ahead > 0, let args = pushArguments(for: head, force: false) {
+                try await git.run(args)
             }
             var args = ["pr", "create", "--title", title, "--body", body, "--base", base, "--head", head]
             if draft { args.append("--draft") }
@@ -644,18 +723,21 @@ extension RepoStore {
                 NSWorkspace.shared.open(prURL)
             }
             showToast("Pull request created")
-            await refresh()
+            await refresh(full: true)
             await loadGitHub()
-            return true
+            return nil
         } catch {
-            alert = AppAlert(title: "Couldn't create pull request", message: error.localizedDescription)
-            return false
+            return error.localizedDescription
         }
     }
 
     func checkoutPullRequest(_ pr: PullRequest) {
+        let before = currentPosition
         run("Checkout PR", success: "Checked out #\(pr.number)") { [self] in
             _ = try await GitHub.run(["pr", "checkout", "\(pr.number)"], in: url, env: self.githubEnv)
+            if let before, let after = await git.currentBranch(), after != before {
+                pushUndo(.checkout(before: before, after: after))
+            }
         }
     }
 
@@ -682,7 +764,12 @@ extension RepoStore {
             let ignoreURL = url.appendingPathComponent(".gitignore")
             var text = (try? String(contentsOf: ignoreURL, encoding: .utf8)) ?? ""
             if !text.isEmpty && !text.hasSuffix("\n") { text += "\n" }
-            text += change.path + "\n"
+            // Anchor to the repo root and escape glob characters so only this exact file matches.
+            let escaped = change.path.reduce(into: "") { out, ch in
+                if "[]*?!#\\".contains(ch) { out.append("\\") }
+                out.append(ch)
+            }
+            text += "/" + escaped + "\n"
             try text.write(to: ignoreURL, atomically: true, encoding: .utf8)
         }
     }

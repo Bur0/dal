@@ -2,6 +2,8 @@ import SwiftUI
 
 struct RepoView: View {
     @Bindable var store: RepoStore
+    @AppStorage("split.sidebar") private var sidebarWidth: Double = 230
+    @AppStorage("split.detail") private var detailWidth: Double = 360
 
     var body: some View {
         VStack(spacing: 0) {
@@ -11,17 +13,20 @@ struct RepoView: View {
                 OngoingBanner(store: store, operation: op)
                 Divider()
             }
-            HSplitView {
+            // Pane widths are shared by all tabs and remembered, so switching tabs never resets them.
+            HStack(spacing: 0) {
                 SidebarView(store: store)
-                    .frame(minWidth: 190, idealWidth: 230, maxWidth: 380)
+                    .frame(width: sidebarWidth)
+                SplitHandle(width: $sidebarWidth, range: 180...420, growsRight: true)
                 CenterView(store: store)
-                    .frame(minWidth: 460, maxWidth: .infinity)
+                    .frame(minWidth: 360, maxWidth: .infinity)
                     .layoutPriority(1)
+                SplitHandle(width: $detailWidth, range: 280...640, growsRight: false)
                 DetailPanel(store: store)
-                    .frame(minWidth: 300, idealWidth: 360, maxWidth: 520)
+                    .frame(width: detailWidth)
             }
         }
-        .overlay(alignment: .bottom) { ToastView(text: store.toast) }
+        .overlay(alignment: .bottom) { ToastView(text: store.toast, warning: store.toastWarning) }
         .alert(item: $store.alert) { alert in
             if let label = alert.confirmLabel, let action = alert.action {
                 return Alert(title: Text(alert.title), message: Text(alert.message),
@@ -39,6 +44,38 @@ struct RepoView: View {
     }
 }
 
+/// A 1pt divider with a wider invisible grab area for resizing the neighbouring pane.
+private struct SplitHandle: View {
+    @Binding var width: Double
+    let range: ClosedRange<Double>
+    let growsRight: Bool
+    @State private var start: Double?
+    @State private var hovering = false
+
+    var body: some View {
+        Rectangle()
+            .fill(Theme.separator)
+            .frame(width: 1)
+            .overlay {
+                Color.clear
+                    .frame(width: 9)
+                    .contentShape(Rectangle())
+                    .onHover { inside in
+                        hovering = inside
+                        if inside { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
+                    }
+                    .gesture(DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                        .onChanged { value in
+                            if start == nil { start = width }
+                            let delta = growsRight ? value.translation.width : -value.translation.width
+                            width = min(max((start ?? width) + delta, range.lowerBound), range.upperBound)
+                        }
+                        .onEnded { _ in start = nil })
+            }
+            .accessibilityHidden(true)
+    }
+}
+
 private struct CenterView: View {
     @Bindable var store: RepoStore
 
@@ -48,8 +85,10 @@ private struct CenterView: View {
                 switch focus {
                 case .conflict(let change):
                     ConflictView(store: store, change: change)
+                        .id(change.path)
                 default:
                     DiffView(store: store, focus: focus)
+                        .id(focus)
                 }
             } else if !store.loaded {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -73,8 +112,10 @@ private struct DetailPanel: View {
             case .commit(let sha):
                 if let commit = store.commit(sha) {
                     CommitDetailView(store: store, commit: commit)
+                        .id(commit.sha)
                 } else if let stash = store.stashes.first(where: { $0.sha == sha }) {
                     StashDetailView(store: store, stash: stash)
+                        .id(stash.sha)
                 } else {
                     EmptyState(symbol: "questionmark.circle", title: "Commit not loaded")
                 }
@@ -94,20 +135,35 @@ struct RepoToolbar: View {
     @FocusState private var searchFocused: Bool
 
     var body: some View {
-        HStack(spacing: 6) {
+        // Full labels when there's room; icon-only buttons in narrow windows.
+        ViewThatFits(in: .horizontal) {
+            bar(compact: false)
+            bar(compact: true)
+        }
+        .padding(.horizontal, 12)
+        .frame(height: 52)
+        .frame(maxWidth: .infinity)
+        .background(.bar)
+        .animation(.easeOut(duration: 0.15), value: store.busy)
+    }
+
+    private func bar(compact: Bool) -> some View {
+        HStack(spacing: compact ? 2 : 6) {
             repoAndBranch
             Spacer(minLength: 12)
 
-            ToolbarButton(title: "Undo", symbol: "arrow.uturn.backward", help: store.undoLabel ?? "Nothing to undo") { store.undo() }
+            ToolbarButton(title: "Undo", symbol: "arrow.uturn.backward", help: store.undoLabel ?? "Nothing to undo",
+                          compact: compact) { store.undo() }
                 .disabled(store.undoStack.isEmpty || store.busy != nil)
-            ToolbarButton(title: "Redo", symbol: "arrow.uturn.forward", help: store.redoLabel ?? "Nothing to redo") { store.redo() }
+            ToolbarButton(title: "Redo", symbol: "arrow.uturn.forward", help: store.redoLabel ?? "Nothing to redo",
+                          compact: compact) { store.redo() }
                 .disabled(store.redoStack.isEmpty || store.busy != nil)
 
             divider
 
             HStack(spacing: 0) {
                 ToolbarButton(title: "Pull", symbol: "arrow.down.to.line",
-                              help: "Pull (⌥⌘L)", badge: store.headRef?.behind ?? 0) { store.pull() }
+                              help: "Pull (⌥⌘L)", badge: store.headRef?.behind ?? 0, compact: compact) { store.pull() }
                 Menu {
                     Button("Fetch All") { store.fetch() }
                     Divider()
@@ -126,44 +182,58 @@ struct RepoToolbar: View {
                 .menuStyle(.borderlessButton)
                 .menuIndicator(.hidden)
                 .frame(width: 16)
+                .accessibilityLabel("Pull options")
             }
             .disabled(store.busy != nil)
 
             ToolbarButton(title: "Push", symbol: "arrow.up.to.line", help: "Push (⌥⌘P)",
-                          badge: store.headRef?.ahead ?? 0) { store.push() }
+                          badge: store.headRef?.ahead ?? 0, compact: compact) { store.push() }
                 .disabled(store.busy != nil)
-            ToolbarButton(title: "Fetch", symbol: "arrow.triangle.2.circlepath", help: "Fetch all remotes (⌥⌘F)") { store.fetch() }
+            ToolbarButton(title: "Fetch", symbol: "arrow.triangle.2.circlepath", help: "Fetch all remotes (⌥⌘F)",
+                          compact: compact) { store.fetch() }
                 .disabled(store.busy != nil)
 
             divider
 
-            ToolbarButton(title: "Branch", symbol: "arrow.triangle.branch", help: "Create branch (⌥⌘B)") { store.promptCreateBranch() }
-            ToolbarButton(title: "Stash", symbol: "tray.and.arrow.down", help: "Stash all changes (⌥⌘S)") { store.stash() }
+            ToolbarButton(title: "Branch", symbol: "arrow.triangle.branch", help: "Create branch (⌥⌘B)",
+                          compact: compact) { store.promptCreateBranch() }
+            ToolbarButton(title: "Stash", symbol: "tray.and.arrow.down", help: "Stash all changes (⌥⌘S)",
+                          compact: compact) { store.stash() }
                 .disabled(store.status.isEmpty || store.busy != nil)
-            ToolbarButton(title: "Pop", symbol: "tray.and.arrow.up", help: "Pop latest stash (⇧⌥⌘S)") { store.popStash() }
+            ToolbarButton(title: "Pop", symbol: "tray.and.arrow.up", help: "Pop latest stash (⇧⌥⌘S)",
+                          compact: compact) { store.popStash() }
                 .disabled(store.stashes.isEmpty || store.busy != nil)
 
             divider
 
-            ToolbarButton(title: "PR", symbol: "arrow.triangle.pull", help: "Create pull request") { store.openCreatePR() }
+            ToolbarButton(title: "PR", symbol: "arrow.triangle.pull", help: "Create pull request",
+                          compact: compact) { store.openCreatePR() }
                 .disabled(store.headBranch == nil || store.remotes.isEmpty)
-            ToolbarButton(title: "Terminal", symbol: "terminal", help: "Open in Terminal (⌥⌘T)") { store.openTerminal() }
+            ToolbarButton(title: "Terminal", symbol: "terminal", help: "Open in Terminal (⌥⌘T)",
+                          compact: compact) { store.openTerminal() }
 
             Spacer(minLength: 12)
 
             if let busy = store.busy {
                 HStack(spacing: 6) {
                     ProgressView().controlSize(.small)
-                    Text(busy + "…").font(.system(size: 11)).foregroundStyle(.secondary)
+                    if !compact {
+                        Text(busy + "…").font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                    Button {
+                        store.cancelRunning()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill").font(.system(size: 12))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .help("Cancel \(busy.lowercased())")
+                    .accessibilityLabel("Cancel \(busy)")
                 }
                 .transition(.opacity)
             }
-            searchField
+            searchField(compact: compact)
         }
-        .padding(.horizontal, 12)
-        .frame(height: 52)
-        .background(.bar)
-        .animation(.easeOut(duration: 0.15), value: store.busy)
     }
 
     private var divider: some View {
@@ -214,7 +284,7 @@ struct RepoToolbar: View {
         }
     }
 
-    private var searchField: some View {
+    private func searchField(compact: Bool) -> some View {
         HStack(spacing: 5) {
             Image(systemName: "magnifyingglass").font(.system(size: 11)).foregroundStyle(.secondary)
             TextField("Search commits", text: $store.searchText)
@@ -235,10 +305,11 @@ struct RepoToolbar: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.tertiary)
+                .accessibilityLabel("Clear search")
             }
         }
         .padding(.horizontal, 8)
-        .frame(width: 210, height: 26)
+        .frame(width: compact ? 150 : 210, height: 26)
         .background(RoundedRectangle(cornerRadius: 6).fill(Theme.subtleFill))
         .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(searchFocused ? Color.accentColor.opacity(0.7) : .clear))
         .help("Search by message, author, SHA or branch. Enter = next, ⇧Enter = previous.")
@@ -265,9 +336,10 @@ private struct OngoingBanner: View {
             }
             Spacer()
             Button("Abort", role: .destructive) { store.abortOperation() }
+                .disabled(store.busy != nil)
             Button("Continue") { store.continueOperation() }
-                .keyboardShortcut(.defaultAction)
-                .disabled(!store.status.conflicted.isEmpty)
+                .buttonStyle(.borderedProminent)
+                .disabled(!store.status.conflicted.isEmpty || store.busy != nil)
         }
         .controlSize(.small)
         .padding(.horizontal, 14)
@@ -278,12 +350,14 @@ private struct OngoingBanner: View {
 
 private struct ToastView: View {
     let text: String?
+    var warning = false
 
     var body: some View {
         ZStack {
             if let text {
                 HStack(spacing: 8) {
-                    Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.added)
+                    Image(systemName: warning ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
+                        .foregroundStyle(warning ? Theme.modified : Theme.added)
                     Text(text).font(.system(size: 12, weight: .medium))
                 }
                 .padding(.horizontal, 14)

@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct MainWindow: View {
     @Environment(AppState.self) private var app
@@ -134,6 +135,14 @@ struct TabBar: View {
     }
 }
 
+/// Drag payload for reordering tabs (a distinct type so branch drags don't land on tabs).
+struct TabDragItem: Codable, Transferable {
+    let path: String
+    static var transferRepresentation: some TransferRepresentation {
+        CodableRepresentation(contentType: .data)
+    }
+}
+
 private struct TabsWidthKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
@@ -162,7 +171,7 @@ private struct GroupChip: View {
                     .opacity(0.85)
             }
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(Theme.onLane(group.color))
         .padding(.horizontal, 9)
         .frame(height: 22)
         .background(RoundedRectangle(cornerRadius: 6).fill(color.opacity(hovering ? 1 : 0.88)))
@@ -170,6 +179,10 @@ private struct GroupChip: View {
         .contentShape(Rectangle())
         .onTapGesture { withAnimation(.easeOut(duration: 0.18)) { app.toggleCollapsed(group) } }
         .onHover { hovering = $0 }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Tab group \(group.name), \(count) tabs, \(group.collapsed ? "collapsed" : "expanded")")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { app.toggleCollapsed(group) }
         .help(group.collapsed ? "Expand \(group.name) (\(count) tabs)" : "Collapse \(group.name)")
         .contextMenu {
             Button("Rename Group…") { app.promptRename(group) }
@@ -199,6 +212,7 @@ private struct TabItem: View {
     let selected: Bool
     var groupColor: Color? = nil
     @State private var hovering = false
+    @State private var dropTarget = false
 
     var body: some View {
         HStack(spacing: 6) {
@@ -222,7 +236,8 @@ private struct TabItem: View {
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
             .opacity(hovering || selected ? 1 : 0)
-            .help("Close tab (⇧⌘W)")
+            .help("Close tab (⌘W)")
+            .accessibilityLabel("Close \(store.name)")
         }
         .padding(.leading, 10)
         .padding(.trailing, 6)
@@ -240,6 +255,22 @@ private struct TabItem: View {
         .onTapGesture { app.select(store) }
         .onHover { hovering = $0 }
         .help(store.url.path)
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+        .accessibilityAction { app.select(store) }
+        // Drag tabs to reorder; dropping onto a grouped tab moves it into that group.
+        .draggable(TabDragItem(path: store.url.path)) {
+            Text(store.name).font(.system(size: 12, weight: .medium))
+                .padding(.horizontal, 10).frame(height: 26)
+                .background(RoundedRectangle(cornerRadius: 6).fill(.regularMaterial))
+        }
+        .dropDestination(for: TabDragItem.self) { items, _ in
+            guard let item = items.first else { return false }
+            withAnimation(.easeOut(duration: 0.15)) { app.moveTab(path: item.path, before: store) }
+            return true
+        } isTargeted: { dropTarget = $0 }
+        .overlay(alignment: .leading) {
+            if dropTarget { Rectangle().fill(Color.accentColor).frame(width: 2).padding(.vertical, 4) }
+        }
         .contextMenu {
             Menu("Add to Group") {
                 Button("New Group…") { app.promptNewGroup(with: store) }
@@ -400,6 +431,11 @@ struct WelcomeView: View {
         HStack(alignment: .top, spacing: 48) {
             VStack(alignment: .leading, spacing: 18) {
                 VStack(alignment: .leading, spacing: 6) {
+                    Image(nsImage: NSApp.applicationIconImage)
+                        .resizable()
+                        .frame(width: 72, height: 72)
+                        .padding(.leading, -6)
+                        .accessibilityHidden(true)
                     Text("Dal").font(.system(size: 34, weight: .bold))
                     Text("A fast, native Git client for macOS.")
                         .foregroundStyle(.secondary)
@@ -497,6 +533,7 @@ private struct RecentRow: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
                 .help("Remove from list")
+                .accessibilityLabel("Remove from recent")
             }
         }
         .padding(.horizontal, 10)

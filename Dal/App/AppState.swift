@@ -118,6 +118,26 @@ final class AppState {
         persist()
     }
 
+    /// ⌘1…⌘8 pick the nth visible tab, ⌘9 the last one (Chrome behaviour).
+    func selectTab(number: Int) {
+        let visible = tabs.filter { group(of: $0)?.collapsed != true }
+        guard !visible.isEmpty else { return }
+        select(number == 9 ? visible[visible.count - 1] : visible[min(number, visible.count) - 1])
+    }
+
+    /// Drag-and-drop reordering in the tab bar. The moved tab joins the group of the tab it was
+    /// dropped on (or leaves its group when dropped on an ungrouped tab).
+    func moveTab(path: String, before target: RepoStore) {
+        guard let from = tabs.firstIndex(where: { $0.url.path == path }), tabs[from].id != target.id else { return }
+        let moved = tabs.remove(at: from)
+        let to = tabs.firstIndex(where: { $0.id == target.id }) ?? tabs.count
+        tabs.insert(moved, at: to)
+        membership[path] = membership[target.url.path]
+        pruneEmptyGroups()
+        normalizeGroups()
+        persist()
+    }
+
     /// ⇧⌘] / ⇧⌘[ — skips tabs hidden inside collapsed groups.
     func selectAdjacent(_ delta: Int) {
         let visible = tabs.filter { group(of: $0)?.collapsed != true }

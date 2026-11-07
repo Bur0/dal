@@ -56,22 +56,25 @@ struct GraphView: View {
         }
         .confirmationDialog(dropTitle, isPresented: Binding(get: { store.drop != nil }, set: { if !$0 { store.drop = nil } }),
                             presenting: store.drop) { drop in
-            Button("Merge \(drop.source) into \(drop.target)") { store.merge(drop.source, into: drop.target) }
-            Button("Rebase \(drop.source) onto \(drop.target)") { store.rebase(drop.source, onto: drop.target) }
-            if isAncestorFastForward(drop) {
+            if drop.canFastForward {
                 Button("Fast-forward \(drop.target) to \(drop.source)") { store.fastForward(drop.target, to: drop.source) }
             }
+            Button(drop.target == store.headBranch ? "Merge \(drop.source) into \(drop.target)"
+                                                   : "Check out \(drop.target) and merge \(drop.source) into it") {
+                store.merge(drop.source, into: drop.target)
+            }
+            if store.localBranches.contains(where: { $0.name == drop.source }) {
+                Button("Rebase \(drop.source) onto \(drop.target)") { store.rebase(drop.source, onto: drop.target) }
+            }
             Button("Cancel", role: .cancel) {}
+        } message: { drop in
+            Text(drop.target == store.headBranch ? "" : "\(drop.target) isn't checked out; merging checks it out first.")
         }
     }
 
     private var dropTitle: String {
         guard let drop = store.drop else { return "" }
         return "\(drop.source) → \(drop.target)"
-    }
-
-    private func isAncestorFastForward(_ drop: DropRequest) -> Bool {
-        store.localBranches.contains { $0.name == drop.target }
     }
 
     private func header(_ columns: GraphColumns) -> some View {
@@ -183,7 +186,6 @@ private struct GraphRowView: View {
                 .padding(.leading, 10)
                 .padding(.trailing, 14)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .help(item.commit?.fullMessage ?? "")
             if let commit = item.commit {
                 if columns.showAuthor {
                     Text(commit.authorName)
@@ -220,17 +222,31 @@ private struct GraphRowView: View {
             if let commit = item.commit { store.select(commit: commit.sha) } else { store.selection = .wip; store.fileFocus = nil }
         }
         .onHover { hovering = $0 }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityText)
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
         .contextMenu { if let commit = item.commit { CommitMenu(store: store, commit: commit, badges: badges) } }
         .dropDestination(for: String.self) { names, _ in
             guard let source = names.first, let target = dropTargetName, source != target else { return false }
-            store.drop = DropRequest(source: source, target: target)
+            Task {
+                let ff = await store.canFastForward(target, to: source)
+                store.drop = DropRequest(source: source, target: target, canFastForward: ff)
+            }
             return true
         } isTargeted: { dropTargeted = $0 && dropTargetName != nil }
     }
 
-    /// Dropping a branch on a row targets that row's local branch (or its first branch).
+    /// Dropping a branch on a row targets that row's local branch. Remote-only rows aren't
+    /// targets: merging "into" a remote branch would only detach HEAD.
     private var dropTargetName: String? {
-        badges.first(where: { $0.local != nil })?.name ?? badges.first(where: { !$0.remotes.isEmpty })?.name
+        badges.first(where: { $0.local != nil })?.name
+    }
+
+    private var accessibilityText: String {
+        guard let commit = item.commit else { return "Work in progress, \(store.status.fileCount) changed files" }
+        let refs = badges.map(\.name).joined(separator: ", ")
+        return "\(commit.subject), by \(commit.authorName), \(Formatters.relative(commit.authorDate))"
+            + (refs.isEmpty ? "" : ", branches \(refs)")
     }
 
     @ViewBuilder private var rowBackground: some View {
@@ -322,8 +338,9 @@ private struct BadgeItem: View {
 
     var body: some View {
         RefBadgeView(badge: badge, color: color)
-            .onTapGesture(count: 2) { checkout() }
+            .onClick({ store.select(commit: badge.primary?.target ?? "") }, double: checkout)
             .contextMenu { BadgeMenu(store: store, badge: badge) }
+            .accessibilityLabel("Branch \(badge.name)")
             .if(badge.local != nil || !badge.remotes.isEmpty) { view in
                 view.draggable(badge.name) {
                     RefBadgeView(badge: badge, color: color, compact: true)

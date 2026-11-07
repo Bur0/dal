@@ -62,6 +62,42 @@ final class GitIntegrationTests: XCTestCase {
         XCTAssertEqual(content, "a\nb\nc\nd\nE\n")
     }
 
+    /// Review finding: staging only "+c" after a last line without newline must not glue lines.
+    func testStagingAfterLastLineWithoutNewline() async throws {
+        let file = dir.appendingPathComponent("f.txt")
+        try "a\nb".write(to: file, atomically: true, encoding: .utf8)
+        try await git.run(["add", "."])
+        try await git.run(["commit", "-qm", "no newline"])
+        try "a\nb\nc\n".write(to: file, atomically: true, encoding: .utf8)
+        let status = try await git.status()
+        let change = try XCTUnwrap(status.unstaged.first)
+        let diff = try await git.diffWorking(change, staged: false)
+        let hunk = try XCTUnwrap(diff.hunks.first)
+        let c = try XCTUnwrap(hunk.lines.first { $0.kind == .addition && $0.text == "c" })
+        let patch = try XCTUnwrap(try PatchBuilder.patch(header: diff.header, hunk: hunk, selected: [c.id], reverse: false))
+        try await git.apply(patch: patch, cached: true, reverse: false)
+        let index = try await git.string(["show", ":f.txt"])
+        XCTAssertEqual(index, "a\nb\nc\n")
+        // Worktree untouched; nothing left to stage.
+        let remaining = try await git.string(["diff"])
+        XCTAssertTrue(remaining.isEmpty, remaining)
+    }
+
+    /// Review finding: paths are literal, so restoring `a[1].txt` leaves `a1.txt` alone.
+    func testPathsAreLiteral() async throws {
+        for name in ["a[1].txt", "a1.txt"] {
+            try "x".write(to: dir.appendingPathComponent(name), atomically: true, encoding: .utf8)
+        }
+        try await git.run(["add", "."])
+        try await git.run(["commit", "-qm", "two files"])
+        for name in ["a[1].txt", "a1.txt"] {
+            try "changed".write(to: dir.appendingPathComponent(name), atomically: true, encoding: .utf8)
+        }
+        try await git.run(["restore", "--", "a[1].txt"])
+        let status = try await git.status()
+        XCTAssertEqual(status.unstaged.map(\.path), ["a1.txt"])
+    }
+
     func testLogRefsAndStashes() async throws {
         try await git.run(["checkout", "-qb", "feature"])
         try "x".write(to: dir.appendingPathComponent("x.txt"), atomically: true, encoding: .utf8)

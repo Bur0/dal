@@ -1,12 +1,12 @@
 import Foundation
 import CoreServices
 
-/// Watches a working tree (including .git) with FSEvents and reports meaningful changes.
+/// Watches a working tree (including .git) with FSEvents and reports the changed paths.
 final class FileWatcher {
     private var stream: FSEventStreamRef?
-    private let onChange: () -> Void
+    private let onChange: ([String]) -> Void
 
-    init(path: String, onChange: @escaping () -> Void) {
+    init(paths: [String], onChange: @escaping ([String]) -> Void) {
         self.onChange = onChange
         var context = FSEventStreamContext(version: 0, info: Unmanaged.passUnretained(self).toOpaque(),
                                            retain: nil, release: nil, copyDescription: nil)
@@ -18,7 +18,7 @@ final class FileWatcher {
         }
         let flags = UInt32(kFSEventStreamCreateFlagUseCFTypes | kFSEventStreamCreateFlagFileEvents
                            | kFSEventStreamCreateFlagNoDefer)
-        stream = FSEventStreamCreate(nil, callback, &context, [path] as CFArray,
+        stream = FSEventStreamCreate(nil, callback, &context, paths as CFArray,
                                      FSEventStreamEventId(kFSEventStreamEventIdSinceNow), 0.3, flags)
         if let stream {
             FSEventStreamSetDispatchQueue(stream, .main)
@@ -27,14 +27,13 @@ final class FileWatcher {
     }
 
     private func handle(_ paths: [String]) {
-        let relevant = paths.contains { path in
-            if path.contains("/.git/objects/") { return false }
+        let relevant = paths.filter { path in
+            if path.contains("/.git/objects/") || path.contains("/.git/logs/") { return false }
             if path.hasSuffix(".lock") { return false }
-            if path.contains("/.git/logs/") { return false }
             if path.hasSuffix("/.DS_Store") { return false }
             return true
         }
-        if relevant { onChange() }
+        if !relevant.isEmpty { onChange(relevant) }
     }
 
     func stop() {

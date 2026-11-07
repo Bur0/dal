@@ -184,12 +184,16 @@ struct ProfilesSettings: View {
                     Button {
                         selection = profiles.add().id
                     } label: { Image(systemName: "plus").frame(width: 24, height: 20) }
+                    .help("Add profile")
+                    .accessibilityLabel("Add profile")
                     Button {
                         if let p = profiles.profiles.first(where: { $0.id == selection }) {
                             profiles.remove(p)
                             selection = profiles.profiles.first?.id
                         }
                     } label: { Image(systemName: "minus").frame(width: 24, height: 20) }
+                    .help("Remove profile")
+                    .accessibilityLabel("Remove profile")
                     .disabled(selection == nil)
                     Spacer()
                 }

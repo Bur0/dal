@@ -18,6 +18,11 @@ enum Theme {
     ]
 
     static let laneNames = ["Blue", "Green", "Amber", "Red", "Teal", "Pink", "Violet", "Olive"]
+    /// Text colour that stays readable on a filled lane colour (light hues need dark text).
+    static func onLane(_ index: Int) -> Color {
+        let light: Set<Int> = [1, 2, 4, 7]
+        return light.contains(((index % lanes.count) + lanes.count) % lanes.count) ? Color.black.opacity(0.85) : .white
+    }
 
     static func lane(_ index: Int) -> Color { lanes[((index % lanes.count) + lanes.count) % lanes.count] }
 
@@ -237,6 +242,7 @@ struct ToolbarButton: View {
     let symbol: String
     var help: String? = nil
     var badge: Int = 0
+    var compact = false
     let action: () -> Void
 
     @Environment(\.isEnabled) private var isEnabled
@@ -259,9 +265,9 @@ struct ToolbarButton: View {
                                 .offset(x: 10, y: -6)
                         }
                     }
-                Text(title).font(.system(size: 10.5))
+                if !compact { Text(title).font(.system(size: 10.5)) }
             }
-            .frame(minWidth: 46)
+            .frame(minWidth: compact ? 28 : 46, minHeight: compact ? 30 : nil)
             .padding(.horizontal, 4)
             .padding(.vertical, 4)
             .background(RoundedRectangle(cornerRadius: 6).fill(hovering && isEnabled ? Theme.hoverFill : .clear))
@@ -271,6 +277,22 @@ struct ToolbarButton: View {
         .foregroundStyle(isEnabled ? .primary : .tertiary)
         .onHover { hovering = $0 }
         .help(help ?? title)
+        .accessibilityLabel(title)
+    }
+}
+
+// MARK: Clicks
+
+extension View {
+    /// Single and double click on one gesture. Unlike stacking `onTapGesture(count: 2)` over
+    /// `onTapGesture`, the single click fires immediately (no double-click delay) and the
+    /// double click isn't swallowed by an inner tap handler.
+    func onClick(_ single: @escaping () -> Void, double: (() -> Void)? = nil) -> some View {
+        onTapGesture {
+            if let double, (NSApp.currentEvent?.clickCount ?? 1) >= 2 { double() } else { single() }
+        }
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { single() }
     }
 }
 
@@ -294,6 +316,7 @@ struct FileRow: View {
     var actionTitle: String? = nil
     var actionSymbol: String? = nil
     var action: (() -> Void)? = nil
+    var onDoubleClick: (() -> Void)? = nil
     var onSelect: () -> Void = {}
 
     @State private var hovering = false
@@ -328,6 +351,7 @@ struct FileRow: View {
                 }
                 .buttonStyle(.plain)
                 .opacity(hovering || selected ? 1 : 0)
+                .accessibilityLabel("\(actionTitle) \(change.fileName)")
             }
         }
         .padding(.horizontal, 10)
@@ -338,8 +362,10 @@ struct FileRow: View {
                 .padding(.horizontal, 4)
         )
         .contentShape(Rectangle())
-        .onTapGesture(perform: onSelect)
+        .onClick(onSelect, double: onDoubleClick)
         .onHover { hovering = $0 }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(change.kind.label): \(change.path)")
     }
 }
 

@@ -45,7 +45,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 }
 
 struct AppCommands: Commands {
@@ -75,10 +75,25 @@ struct AppCommands: Commands {
             Button("Clone Repository…") { app.showClone = true }
                 .keyboardShortcut("o", modifiers: [.command, .shift])
             Button("Init Repository…") { app.initPanel() }
-            Divider()
-            Button("Close Tab") { if let store { app.close(store) } }
+        }
+
+        // ⌘W closes the tab (like Chrome); ⇧⌘W closes the window.
+        CommandGroup(replacing: .saveItem) {
+            Button("Close Tab") {
+                if let store { app.close(store) } else { NSApp.keyWindow?.performClose(nil) }
+            }
+            .keyboardShortcut("w")
+            Button("Close Window") { NSApp.keyWindow?.performClose(nil) }
                 .keyboardShortcut("w", modifiers: [.command, .shift])
-                .disabled(store == nil)
+        }
+
+        CommandGroup(after: .windowArrangement) {
+            Divider()
+            ForEach(1..<10) { n in
+                Button(n == 9 ? "Last Tab" : "Tab \(n)") { app.selectTab(number: n) }
+                    .keyboardShortcut(KeyEquivalent(Character("\(n)")), modifiers: .command)
+                    .disabled(app.tabs.isEmpty)
+            }
         }
 
         CommandMenu("Repository") {
@@ -114,6 +129,13 @@ struct AppCommands: Commands {
                 .keyboardShortcut("f")
             Button("Show Working Changes") { store?.selectWIP() }
                 .keyboardShortcut("0", modifiers: [.command])
+            Button("Write Commit Message") {
+                store?.selectWIP()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    NotificationCenter.default.post(name: .focusCommitMessage, object: nil)
+                }
+            }
+            .keyboardShortcut("m", modifiers: [.command, .shift])
             Divider()
             Button("Open in Terminal") { store?.openTerminal() }
                 .keyboardShortcut("t", modifiers: [.command, .option])

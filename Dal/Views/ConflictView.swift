@@ -8,6 +8,8 @@ struct ConflictView: View {
     @State private var choices: [Int: ConflictChoice] = [:]
     @State private var loadError: String?
     @State private var loaded = false
+    @State private var loadedText = ""
+    @State private var changedOnDisk = false
 
     private var conflicts: [ConflictChunk] { chunks.filter(\.isConflict) }
     private var resolvedCount: Int { conflicts.filter { choices[$0.id] != nil }.count }
@@ -20,13 +22,35 @@ struct ConflictView: View {
             content
         }
         .task(id: change) { load() }
-        .onExitCommand { store.fileFocus = nil }
+        .onChange(of: store.refreshVersion) { _, _ in checkDisk() }
+        .onKeyPress(.escape) { store.fileFocus = nil; return .handled }
+    }
+
+    private var fileURL: URL { store.url.appendingPathComponent(change.path) }
+
+    /// Picks up edits made in an external editor. Untouched views reload silently; if choices
+    /// were already made, saving is blocked until the user reloads.
+    private func checkDisk() {
+        guard loaded, let text = try? String(contentsOf: fileURL, encoding: .utf8), text != loadedText else { return }
+        if choices.isEmpty { load() } else { changedOnDisk = true }
+    }
+
+    private func save() {
+        guard let output = ConflictParser.resolve(chunks, choices: choices) else { return }
+        let current = (try? String(contentsOf: fileURL, encoding: .utf8)) ?? ""
+        guard current == loadedText else {
+            changedOnDisk = true
+            return
+        }
+        store.resolveConflict(change, content: output)
     }
 
     private func load() {
         choices = [:]
+        changedOnDisk = false
         do {
-            let text = try String(contentsOf: store.url.appendingPathComponent(change.path), encoding: .utf8)
+            let text = try String(contentsOf: fileURL, encoding: .utf8)
+            loadedText = text
             chunks = ConflictParser.parse(text)
             loadError = nil
         } catch {
@@ -55,14 +79,10 @@ struct ConflictView: View {
                 .controlSize(.small)
                 .help("Stage the file as it is on disk (after editing it yourself)")
             if !conflicts.isEmpty {
-                Button("Save & Resolve") {
-                    if let output = ConflictParser.resolve(chunks, choices: choices) {
-                        store.resolveConflict(change, content: output)
-                    }
-                }
+                Button("Save & Resolve") { save() }
                 .controlSize(.small)
                 .buttonStyle(.borderedProminent)
-                .disabled(resolvedCount < conflicts.count)
+                .disabled(resolvedCount < conflicts.count || changedOnDisk)
                 .keyboardShortcut(.return, modifiers: .command)
             }
             Button { store.fileFocus = nil } label: {
@@ -70,6 +90,7 @@ struct ConflictView: View {
             }
             .buttonStyle(.borderless)
             .help("Close (Esc)")
+            .accessibilityLabel("Close conflict view")
         }
         .padding(.horizontal, 12)
         .frame(height: 44)
@@ -77,6 +98,18 @@ struct ConflictView: View {
     }
 
     @ViewBuilder private var content: some View {
+        if changedOnDisk {
+            HStack(spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Theme.modified)
+                Text("\(change.fileName) changed on disk since you opened it. Reload to resolve the current version.")
+                    .font(.system(size: 11.5))
+                Spacer()
+                Button("Reload") { load() }.controlSize(.small)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(Theme.modified.opacity(0.12))
+        }
         if isDeleteConflict && conflicts.isEmpty {
             VStack(spacing: 12) {
                 EmptyState(symbol: "trash.slash", title: "Modified on one side, deleted on the other",

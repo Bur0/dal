@@ -62,6 +62,7 @@ struct SidebarView: View {
                 if !filter.isEmpty {
                     Button { filter = "" } label: { Image(systemName: "xmark.circle.fill").font(.system(size: 11)) }
                         .buttonStyle(.plain).foregroundStyle(.tertiary)
+                        .accessibilityLabel("Clear filter")
                 }
             }
             .padding(.horizontal, 8)
@@ -113,7 +114,8 @@ struct SidebarView: View {
 
                 Section(isExpanded: forced($tagsOpen)) {
                     ForEach(store.tags.filter { matches($0.name) }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedDescending }) { tag in
-                        SidebarItem(symbol: "tag", title: tag.name, selected: false) {
+                        SidebarItem(symbol: "tag", title: tag.name, selected: false,
+                                    highlighted: store.selection == .commit(tag.target)) {
                             store.select(commit: tag.target, scroll: true)
                         }
                         .contextMenu { BadgeMenu(store: store, badge: RefBadge(id: tag.fullName, name: tag.name, tag: tag)) }
@@ -126,8 +128,8 @@ struct SidebarView: View {
                 Section(isExpanded: forced($worktreesOpen)) {
                     ForEach(store.worktrees) { tree in
                         SidebarItem(symbol: tree.isMain ? "folder.fill" : "folder", title: tree.name,
-                                    detail: tree.branch, selected: tree.path == store.url.path) {}
-                            .onTapGesture(count: 2) { AppState.shared.open(URL(fileURLWithPath: tree.path)) }
+                                    detail: tree.branch, selected: tree.path == store.url.path,
+                                    double: { AppState.shared.open(URL(fileURLWithPath: tree.path)) }) {}
                             .help(tree.path + "\nDouble-click to open in a new tab")
                             .contextMenu {
                                 Button("Open in New Tab") { AppState.shared.open(URL(fileURLWithPath: tree.path)) }
@@ -156,10 +158,12 @@ struct SidebarView: View {
                         Button { store.openCreatePR() } label: { Image(systemName: "plus") }
                             .buttonStyle(.plain)
                             .help("Create pull request")
+                            .accessibilityLabel("Create pull request")
                             .disabled(store.headBranch == nil)
                         Button { Task { await store.loadGitHub() } } label: { Image(systemName: "arrow.clockwise") }
                             .buttonStyle(.plain)
                             .help("Reload from GitHub")
+                            .accessibilityLabel("Reload pull requests")
                     }
                 }
 
@@ -232,6 +236,8 @@ private struct SidebarItem: View {
     var trailing: AnyView? = nil
     let selected: Bool
     var bold = false
+    var highlighted = false
+    var double: (() -> Void)? = nil
     let action: () -> Void
 
     var body: some View {
@@ -250,8 +256,12 @@ private struct SidebarItem: View {
                 Text(detail).font(.system(size: 10.5)).foregroundStyle(.tertiary).lineLimit(1)
             }
         }
+        .padding(.horizontal, 4)
+        .padding(.vertical, 2)
+        .background(RoundedRectangle(cornerRadius: 5).fill(highlighted ? Color.accentColor.opacity(0.2) : .clear))
+        .padding(.horizontal, -4)
         .contentShape(Rectangle())
-        .onTapGesture(perform: action)
+        .onClick(action, double: double)
     }
 }
 
@@ -264,12 +274,13 @@ private struct BranchRow: View {
             SidebarItem(symbol: ref.isHead ? "checkmark.circle.fill" : ref.kind == .remoteBranch ? "cloud" : "arrow.triangle.branch",
                         title: node.name,
                         trailing: AnyView(TrackingPill(ref: ref)),
-                        selected: ref.isHead, bold: ref.isHead) {
+                        selected: ref.isHead, bold: ref.isHead,
+                        highlighted: store.selection == .commit(ref.target),
+                        double: {
+                            if ref.kind == .remoteBranch { store.checkout(remote: ref) }
+                            else if !ref.isHead { store.checkout(ref.name) }
+                        }) {
                 store.select(commit: ref.target, scroll: true)
-            }
-            .onTapGesture(count: 2) {
-                if ref.kind == .remoteBranch { store.checkout(remote: ref) }
-                else if !ref.isHead { store.checkout(ref.name) }
             }
             .help(ref.kind == .remoteBranch ? "\(ref.name)\nDouble-click to check out" :
                     "\(ref.name)\(ref.upstream.map { " → \($0)" } ?? "")\nDouble-click to check out")
@@ -352,13 +363,12 @@ private struct PullRequestRow: View {
         }
         .padding(.vertical, 2)
         .contentShape(Rectangle())
-        .onTapGesture {
+        .onClick({
             if let ref = store.localBranches.first(where: { $0.name == pr.headRefName })
                 ?? store.remoteBranches.first(where: { $0.branchName == pr.headRefName }) {
                 store.select(commit: ref.target, scroll: true)
             }
-        }
-        .onTapGesture(count: 2) { if let url = URL(string: pr.url) { NSWorkspace.shared.open(url) } }
+        }, double: { if let url = URL(string: pr.url) { NSWorkspace.shared.open(url) } })
         .help("\(pr.title)\nby \(pr.author?.login ?? "unknown")\nDouble-click to open on GitHub")
         .contextMenu {
             Button("Open on GitHub") { if let url = URL(string: pr.url) { NSWorkspace.shared.open(url) } }

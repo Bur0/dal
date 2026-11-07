@@ -149,6 +149,7 @@ struct CreatePRSheet: View {
     @State private var head = ""
     @State private var draft = false
     @State private var working = false
+    @State private var error: String?
 
     private var branchNames: [String] { store.localBranches.map(\.name) }
     private var remoteBranchNames: [String] {
@@ -186,17 +187,26 @@ struct CreatePRSheet: View {
             Toggle("Create as draft", isOn: $draft).toggleStyle(.checkbox)
             Text("The branch is pushed first if it isn't on the remote yet. Uses the GitHub CLI (gh).")
                 .font(.system(size: 11)).foregroundStyle(.tertiary)
+            if let error {
+                Text(error)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.deleted)
+                    .textSelection(.enabled)
+                    .lineLimit(8)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             HStack {
                 if working { ProgressView().controlSize(.small) }
                 Spacer()
                 Button("Cancel", role: .cancel) { dismiss() }.keyboardShortcut(.cancelAction)
                 Button("Create Pull Request") {
                     working = true
+                    error = nil
                     Task {
-                        let ok = await store.createPullRequest(title: title.trimmed, body: bodyText, base: base,
-                                                               head: head, draft: draft)
+                        let failure = await store.createPullRequest(title: title.trimmed, body: bodyText, base: base,
+                                                                    head: head, draft: draft)
                         working = false
-                        if ok { dismiss() }
+                        if let failure { error = failure } else { dismiss() }
                     }
                 }
                 .keyboardShortcut(.defaultAction)

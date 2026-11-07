@@ -6,6 +6,7 @@ struct CommitDetailView: View {
 
     @State private var changes: [FileChange] = []
     @State private var loading = true
+    @State private var loadError: String?
     @AppStorage("detail.tree") private var treeMode = false
 
     var body: some View {
@@ -24,7 +25,12 @@ struct CommitDetailView: View {
         }
         .task(id: commit.sha) {
             loading = true
-            changes = (try? await store.git.changes(sha: commit.sha, parent: commit.parents.first)) ?? []
+            do {
+                changes = try await store.git.changes(sha: commit.sha, parent: commit.parents.first)
+                loadError = nil
+            } catch {
+                loadError = error.localizedDescription
+            }
             loading = false
         }
     }
@@ -140,10 +146,12 @@ struct CommitDetailView: View {
     @ViewBuilder private var files: some View {
         if loading && changes.isEmpty {
             ProgressView().controlSize(.small).frame(maxWidth: .infinity).padding()
+        } else if let loadError {
+            Text(loadError).font(.system(size: 11)).foregroundStyle(Theme.deleted).textSelection(.enabled)
         } else if changes.isEmpty {
             Text("No file changes").font(.system(size: 11)).foregroundStyle(.tertiary)
         } else {
-            VStack(alignment: .leading, spacing: 1) {
+            LazyVStack(alignment: .leading, spacing: 1) {
                 if treeMode {
                     ForEach(groupedByDirectory, id: \.0) { dir, items in
                         if !dir.isEmpty {

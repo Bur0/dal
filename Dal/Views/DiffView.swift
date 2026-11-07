@@ -9,6 +9,7 @@ struct DiffView: View {
     @State private var selection: [Int: Set<Int>] = [:]   // hunk id → selected line ids
     @State private var anchor: (hunk: Int, line: Int)?
     @AppStorage("diff.wrap") private var wrap = true
+    @FocusState private var focused: Bool
 
     private var change: FileChange { focus.change }
 
@@ -16,6 +17,8 @@ struct DiffView: View {
     private var mode: Mode {
         if case .working(let c, let staged) = focus {
             if c.kind == .untracked { return .readOnly }
+            // Renames, new and deleted files can only be staged as a whole file.
+            if let diff, !PatchBuilder.supportsPartial(diff.header) { return .readOnly }
             return staged ? .staged : .unstaged
         }
         return .readOnly
@@ -31,7 +34,11 @@ struct DiffView: View {
         .onChange(of: store.refreshVersion) { _, _ in
             if case .working = focus { Task { await load(reset: false) } }
         }
-        .onExitCommand { store.fileFocus = nil }
+        .focusable()
+        .focusEffectDisabled()
+        .focused($focused)
+        .onAppear { focused = true }
+        .onKeyPress(.escape) { store.fileFocus = nil; return .handled }
     }
 
     private func load(reset: Bool) async {
@@ -82,6 +89,7 @@ struct DiffView: View {
                 .toggleStyle(.button)
                 .controlSize(.small)
                 .help("Wrap long lines")
+                .accessibilityLabel("Wrap long lines")
             if case .working(let c, let staged) = focus {
                 if staged {
                     Button("Unstage File") { store.unstage(c) }.controlSize(.small)
@@ -95,6 +103,7 @@ struct DiffView: View {
             } label: { Image(systemName: "arrow.up.forward.app") }
                 .buttonStyle(.borderless)
                 .help("Open in default editor")
+                .accessibilityLabel("Open in default editor")
             Button {
                 store.fileFocus = nil
             } label: {
@@ -104,6 +113,7 @@ struct DiffView: View {
             }
             .buttonStyle(.borderless)
             .help("Close diff (Esc)")
+            .accessibilityLabel("Close diff")
         }
         .padding(.horizontal, 12)
         .frame(height: 44)
@@ -171,7 +181,10 @@ struct DiffView: View {
                 }
                 .controlSize(.small)
             case .readOnly:
-                EmptyView()
+                if case .working = focus, change.kind != .untracked {
+                    Text("Whole file only (rename / new / deleted)")
+                        .font(.system(size: 10.5)).foregroundStyle(.tertiary)
+                }
             }
         }
         .padding(.horizontal, 12)
@@ -212,7 +225,17 @@ struct DiffView: View {
             guard selectable else { return }
             toggle(hunk: hunk, line: line, extend: NSEvent.modifierFlags.contains(.shift))
         }
-        .help(selectable ? "Click to select · ⇧-click to select a range" : "")
+        .contextMenu {
+            Button("Copy Line") { copy([line.text]) }
+            if let selected = selection[hunk.id], !selected.isEmpty {
+                Button("Copy Selected Lines") { copy(hunk.lines.filter { selected.contains($0.id) }.map(\.text)) }
+            }
+            Button("Copy Hunk") { copy(hunk.lines.filter { $0.kind != .noNewline }.map(\.text)) }
+        }
+    }
+
+    private func copy(_ lines: [String]) {
+        store.copy(lines.joined(separator: "\n"), label: lines.count == 1 ? "Copied line" : "Copied \(lines.count) lines")
     }
 
     private func toggle(hunk: DiffHunk, line: DiffLine, extend: Bool) {

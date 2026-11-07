@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/logo.png" width="128" alt="Dal logo"></p>
+
 # Dal
 
 **A fast, native Git client for macOS** — a commit graph you can read at a glance, line-level staging,

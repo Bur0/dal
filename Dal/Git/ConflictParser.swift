@@ -19,12 +19,19 @@ enum ConflictChoice: Hashable {
 }
 
 enum ConflictParser {
+    /// A marker is exactly seven characters, optionally followed by a space and a label.
+    private static func isMarker(_ line: String, _ char: Character) -> Bool {
+        let marker = String(repeating: char, count: 7)
+        return line == marker || line.hasPrefix(marker + " ")
+    }
+
     static func parse(_ text: String) -> [ConflictChunk] {
         let lines = text.components(separatedBy: "\n")
         var chunks: [ConflictChunk] = []
         var buffer: [String] = []
+        var raw: [String] = []          // lines of the conflict being read, verbatim
         var ours: [String] = [], base: [String]? = nil, theirs: [String] = []
-        var oursLabel = "", theirsLabel = ""
+        var oursLabel = ""
         enum State { case text, ours, base, theirs }
         var state = State.text
 
@@ -38,31 +45,39 @@ enum ConflictParser {
         for line in lines {
             switch state {
             case .text:
-                if line.hasPrefix("<<<<<<<") {
+                if isMarker(line, "<") {
                     flushText()
                     oursLabel = String(line.dropFirst(7)).trimmed
                     ours = []; base = nil; theirs = []
+                    raw = [line]
                     state = .ours
                 } else {
                     buffer.append(line)
                 }
             case .ours:
-                if line.hasPrefix("|||||||") { base = []; state = .base }
-                else if line.hasPrefix("=======") { state = .theirs }
+                raw.append(line)
+                if isMarker(line, "|") { base = []; state = .base }
+                else if line == "=======" { state = .theirs }
                 else { ours.append(line) }
             case .base:
-                if line.hasPrefix("=======") { state = .theirs } else { base?.append(line) }
+                raw.append(line)
+                if line == "=======" { state = .theirs } else { base?.append(line) }
             case .theirs:
-                if line.hasPrefix(">>>>>>>") {
-                    theirsLabel = String(line.dropFirst(7)).trimmed
+                raw.append(line)
+                if isMarker(line, ">") {
+                    let theirsLabel = String(line.dropFirst(7)).trimmed
                     chunks.append(ConflictChunk(id: chunks.count, content: .conflict(
                         ours: ours, base: base, theirs: theirs, oursLabel: oursLabel, theirsLabel: theirsLabel)))
+                    raw = []
                     state = .text
                 } else {
                     theirs.append(line)
                 }
             }
         }
+        // An unterminated conflict (e.g. a document that merely quotes "<<<<<<<") is kept as plain
+        // text so resolving never drops lines.
+        if state != .text { buffer.append(contentsOf: raw) }
         flushText()
         return chunks
     }

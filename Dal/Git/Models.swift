@@ -29,6 +29,9 @@ struct Ref: Identifiable, Hashable {
     let kind: RefKind
     let target: String
     var upstream: String?
+    /// Remote and branch name the upstream lives on (e.g. "fork" / "feature"), for pushing.
+    var upstreamRemote: String?
+    var upstreamBranch: String?
     var ahead = 0
     var behind = 0
     var upstreamGone = false
