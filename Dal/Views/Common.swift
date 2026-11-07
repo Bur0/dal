@@ -271,7 +271,7 @@ struct ToolbarButton: View {
                                 .offset(x: 10, y: -6)
                         }
                     }
-                if !compact { Text(title).font(.system(size: 10.5)) }
+                if !compact { Text(title).font(.system(size: 11)) }
             }
             .frame(minWidth: compact ? 28 : 46, minHeight: compact ? 30 : nil)
             .padding(.horizontal, 4)
@@ -304,15 +304,80 @@ extension View {
 
 // MARK: File rows
 
+/// File status as a coloured glyph in a fixed 16pt column (no filled tile: the colour is the
+/// signal, the chrome stays quiet).
 struct ChangeIcon: View {
     let kind: ChangeKind
     var body: some View {
         Image(systemName: kind.symbol)
-            .font(.system(size: 8.5, weight: .heavy))
-            .foregroundStyle(.white)
-            .frame(width: 15, height: 15)
-            .background(RoundedRectangle(cornerRadius: 3.5).fill(kind.color))
+            .font(.system(size: 10, weight: .bold))
+            .foregroundStyle(kind.color)
+            .frame(width: 16, height: 16)
             .help(kind.label)
+    }
+}
+
+/// Small icon button with an on/off state shown as a neutral surface step, not an accent fill.
+struct IconToggle: View {
+    let symbol: String
+    let label: String
+    @Binding var isOn: Bool
+    @State private var hovering = false
+
+    var body: some View {
+        Button { isOn.toggle() } label: {
+            Image(systemName: symbol)
+                .font(.system(size: 12))
+                .frame(width: 24, height: 22)
+                .background(RoundedRectangle(cornerRadius: 6)
+                    .fill(isOn ? Color.primary.opacity(0.12) : hovering ? Theme.hoverFill : .clear))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(isOn ? .primary : .secondary)
+        .onHover { hovering = $0 }
+        .help(label)
+        .accessibilityLabel(label)
+        .accessibilityAddTraits(isOn ? [.isButton, .isSelected] : .isButton)
+    }
+}
+
+/// A keyboard shortcut drawn as keycaps — Dal's one signature detail.
+struct KeyCap: View {
+    let keys: String
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(Array(Self.tokens(keys).enumerated()), id: \.offset) { _, key in
+                Text(key)
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .frame(minWidth: 18, minHeight: 18)
+                    .padding(.horizontal, key.count > 1 ? 4 : 0)
+                    .background(RoundedRectangle(cornerRadius: 4).fill(Color.primary.opacity(0.06)))
+                    .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(Color.primary.opacity(0.12)))
+                    .overlay(alignment: .bottom) {
+                        RoundedRectangle(cornerRadius: 4).fill(Color.primary.opacity(0.10)).frame(height: 1).padding(.horizontal, 2)
+                    }
+            }
+        }
+        .accessibilityLabel(keys)
+    }
+
+    /// "⇧⌘O" → ["⇧", "⌘", "O"]; "esc" → ["esc"]; "↑↓" → ["↑", "↓"].
+    static func tokens(_ keys: String) -> [String] {
+        let symbols: Set<Character> = ["⌘", "⇧", "⌥", "⌃", "↑", "↓", "←", "→", "↩", "⌫", "⇥"]
+        var result: [String] = []
+        var word = ""
+        for ch in keys {
+            if symbols.contains(ch) || ch == " " {
+                if !word.isEmpty { result.append(word); word = "" }
+                if ch != " " { result.append(String(ch)) }
+            } else {
+                word.append(ch)
+            }
+        }
+        if !word.isEmpty { result.append(word) }
+        return result
     }
 }
 
@@ -350,20 +415,21 @@ struct FileRow: View {
                         Text(actionTitle)
                     }
                     .font(.system(size: 11, weight: .medium))
-                    .padding(.horizontal, 7)
+                    .padding(.horizontal, 8)
                     .frame(height: 20)
-                    .background(RoundedRectangle(cornerRadius: 4).fill(Color.accentColor.opacity(0.18)))
-                    .foregroundStyle(Color.accentColor)
+                    .background(RoundedRectangle(cornerRadius: 5).fill(Color.primary.opacity(0.08)))
+                    .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(Color.primary.opacity(0.10)))
+                    .foregroundStyle(.primary)
                 }
                 .buttonStyle(.plain)
                 .opacity(hovering || selected ? 1 : 0)
                 .accessibilityLabel("\(actionTitle) \(change.fileName)")
             }
         }
-        .padding(.horizontal, 10)
-        .frame(height: 26)
+        .padding(.horizontal, 12)
+        .frame(height: 28)
         .background(
-            RoundedRectangle(cornerRadius: 5)
+            RoundedRectangle(cornerRadius: 6)
                 .fill(selected ? Color.accentColor.opacity(0.22) : hovering ? Theme.hoverFill : .clear)
                 .padding(.horizontal, 4)
         )
@@ -380,15 +446,13 @@ struct SectionTitle: View {
     var count: Int? = nil
     var body: some View {
         HStack(spacing: 6) {
-            Text(title.uppercased())
-                .font(.system(size: 10.5, weight: .semibold))
+            Text(title)
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(.secondary)
             if let count {
                 Text("\(count)")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 5)
-                    .background(Capsule().fill(Theme.subtleFill))
+                    .font(.system(size: 11).monospacedDigit())
+                    .foregroundStyle(.tertiary)
             }
         }
     }

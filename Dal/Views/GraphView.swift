@@ -79,25 +79,25 @@ struct GraphView: View {
 
     private func header(_ columns: GraphColumns) -> some View {
         HStack(spacing: 0) {
-            Text("BRANCH / TAG")
+            Text("Branch / tag")
                 .padding(.leading, 10)
                 .frame(width: columns.refWidth, alignment: .leading)
                 .overlay(alignment: .trailing) { ColumnResizer(width: $refWidth, range: 90...360) }
-            Text("GRAPH")
+            Text("Graph")
                 .padding(.leading, 6)
                 .frame(width: columns.graphWidth, alignment: .leading)
                 .overlay(alignment: .trailing) { ColumnResizer(width: $graphMax, range: 40...600) }
-            Text("COMMIT MESSAGE")
+            Text("Commit message")
                 .padding(.leading, 10)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            if columns.showAuthor { Text("AUTHOR").frame(width: GraphColumns.authorWidth, alignment: .leading) }
-            if columns.showDate { Text("DATE").frame(width: GraphColumns.dateWidth, alignment: .leading) }
+            if columns.showAuthor { Text("Author").frame(width: GraphColumns.authorWidth, alignment: .leading) }
+            if columns.showDate { Text("Date").frame(width: GraphColumns.dateWidth, alignment: .leading) }
             if columns.showSha { Text("SHA").frame(width: GraphColumns.shaWidth, alignment: .leading) }
         }
         .lineLimit(1)
-        .font(.system(size: 10, weight: .semibold))
+        .font(.system(size: 11, weight: .medium))
         .foregroundStyle(.secondary)
-        .frame(height: 24)
+        .frame(height: 28)
         .background(.bar)
     }
 }
@@ -276,7 +276,7 @@ private struct GraphRowView: View {
                         }
                     } label: {
                         Text("+\(badges.count - 1)")
-                            .font(.system(size: 10, weight: .semibold))
+                            .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(.secondary)
                             .padding(.horizontal, 4)
                             .frame(height: 17)
@@ -291,7 +291,6 @@ private struct GraphRowView: View {
             }
             .padding(.leading, 8)
             .frame(maxHeight: .infinity)
-            .background(laneColor.opacity(0.07))
         } else {
             Color.clear
         }
@@ -306,9 +305,8 @@ private struct GraphRowView: View {
                 .lineLimit(1)
         } else {
             HStack(spacing: 8) {
-                Text("// WIP")
+                Text("Uncommitted changes")
                     .foregroundStyle(.secondary)
-                    .italic()
                 let s = store.status
                 if !s.conflicted.isEmpty {
                     countPill("exclamationmark.triangle.fill", s.conflicted.count, Theme.conflict)
@@ -322,7 +320,7 @@ private struct GraphRowView: View {
     private func countPill(_ symbol: String, _ count: Int, _ color: Color) -> some View {
         HStack(spacing: 3) {
             Image(systemName: symbol).font(.system(size: 8, weight: .bold))
-            Text("\(count)").font(.system(size: 10.5, weight: .semibold)).monospacedDigit()
+            Text("\(count)").font(.system(size: 11, weight: .semibold)).monospacedDigit()
         }
         .foregroundStyle(color)
         .padding(.horizontal, 6)

@@ -161,12 +161,12 @@ private struct GroupChip: View {
                 Circle().fill(color).frame(width: 10, height: 10)
             } else {
                 Text(group.name)
-                    .font(.system(size: 11.5, weight: .semibold))
+                    .font(.system(size: 12, weight: .semibold))
                     .lineLimit(1)
             }
             if group.collapsed {
                 Text("\(count)")
-                    .font(.system(size: 10, weight: .bold))
+                    .font(.system(size: 11, weight: .bold))
                     .monospacedDigit()
                     .opacity(0.85)
             }
@@ -374,10 +374,27 @@ struct QuickSwitcher: View {
                 .onChange(of: highlighted) { _, i in proxy.scrollTo(i) }
             }
             .frame(height: 360)
+            Divider()
+            HStack(spacing: 14) {
+                hint("↑↓", "move")
+                hint("↩", "open")
+                hint("esc", "close")
+                Spacer()
+                Text("\(list.count) repositories").font(.system(size: 11).monospacedDigit()).foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 16)
+            .frame(height: 36)
         }
         .frame(width: 560)
         .onAppear { focused = true }
         .onChange(of: query) { _, _ in highlighted = 0 }
+    }
+
+    private func hint(_ keys: String, _ label: String) -> some View {
+        HStack(spacing: 6) {
+            KeyCap(keys: keys)
+            Text(label).font(.system(size: 11)).foregroundStyle(.tertiary)
+        }
     }
 
     private func row(_ entry: Entry, highlighted: Bool) -> some View {
@@ -393,14 +410,14 @@ struct QuickSwitcher: View {
             Spacer()
             if let group = entry.group {
                 Text(group.name.isEmpty ? "group" : group.name)
-                    .font(.system(size: 10.5, weight: .semibold))
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 7)
                     .frame(height: 18)
                     .background(Capsule().fill(Theme.lane(group.color)))
             }
             if entry.store == nil {
-                Text("recent").font(.system(size: 10.5)).foregroundStyle(.tertiary)
+                Text("recent").font(.system(size: 11)).foregroundStyle(.tertiary)
             }
         }
         .padding(.horizontal, 10)
@@ -426,51 +443,71 @@ struct QuickSwitcher: View {
 
 struct WelcomeView: View {
     @Environment(AppState.self) private var app
+    @State private var dropTargeted = false
 
     var body: some View {
+        // Two columns that share a top edge: who/what on the left, your work on the right.
         HStack(alignment: .top, spacing: 48) {
-            VStack(alignment: .leading, spacing: 18) {
-                VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 24) {
+                HStack(spacing: 12) {
                     Image(nsImage: NSApp.applicationIconImage)
                         .resizable()
-                        .frame(width: 72, height: 72)
-                        .padding(.leading, -6)
+                        .frame(width: 56, height: 56)
                         .accessibilityHidden(true)
-                    Text("Dal").font(.system(size: 34, weight: .bold))
-                    Text("A fast, native Git client for macOS.")
-                        .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Dal").font(.system(size: 26, weight: .semibold))
+                        Text("Git client for macOS")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.secondary)
+                    }
                 }
-                VStack(alignment: .leading, spacing: 8) {
-                    WelcomeAction(symbol: "folder", title: "Open a repository", shortcut: "⌘O") { app.openPanel() }
-                    WelcomeAction(symbol: "square.and.arrow.down", title: "Clone a repository", shortcut: "⇧⌘O") { app.showClone = true }
-                    WelcomeAction(symbol: "plus.square", title: "Init a new repository", shortcut: nil) { app.initPanel() }
+                .padding(.leading, 4)
+                VStack(alignment: .leading, spacing: 4) {
+                    WelcomeAction(symbol: "folder", title: "Open repository", shortcut: "⌘O") { app.openPanel() }
+                    WelcomeAction(symbol: "square.and.arrow.down", title: "Clone repository", shortcut: "⇧⌘O") { app.showClone = true }
+                    WelcomeAction(symbol: "plus.square", title: "New repository", shortcut: nil) { app.initPanel() }
                 }
+                Text("Or drop a folder anywhere in this window")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.tertiary)
+                    .padding(.leading, 12)
             }
-            .frame(width: 280)
+            .frame(width: 280, alignment: .leading)
 
-            VStack(alignment: .leading, spacing: 10) {
-                SectionTitle(title: "Recent")
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    SectionTitle(title: "Recent")
+                    Spacer()
+                    if !app.recent.isEmpty {
+                        HStack(spacing: 6) {
+                            Text("Jump to any").font(.system(size: 11)).foregroundStyle(.tertiary)
+                            KeyCap(keys: "⌘P")
+                        }
+                    }
+                }
+                .frame(height: 20)
                 if app.recent.isEmpty {
-                    Text("Repositories you open will show up here.")
+                    Text("Repositories you open appear here")
                         .font(.system(size: 12))
                         .foregroundStyle(.tertiary)
-                        .padding(.top, 4)
                 } else {
                     VStack(spacing: 2) {
-                        ForEach(app.recent, id: \.self) { path in
+                        ForEach(app.recent.prefix(10), id: \.self) { path in
                             RecentRow(path: path)
                         }
                     }
                 }
             }
-            .frame(width: 420, alignment: .leading)
+            .frame(width: 440, alignment: .leading)
+            .padding(.top, 4)
         }
-        .padding(40)
+        .padding(48)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(dropTargeted ? Color.accentColor.opacity(0.06) : .clear)
         .dropDestination(for: URL.self) { urls, _ in
             for url in urls { app.open(url) }
             return !urls.isEmpty
-        }
+        } isTargeted: { dropTargeted = $0 }
     }
 }
 
@@ -486,17 +523,15 @@ private struct WelcomeAction: View {
             HStack(spacing: 10) {
                 Image(systemName: symbol)
                     .font(.system(size: 14))
-                    .frame(width: 22)
-                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 20)
+                    .foregroundStyle(.secondary)
                 Text(title).font(.system(size: 13))
                 Spacer()
-                if let shortcut {
-                    Text(shortcut).font(.system(size: 11)).foregroundStyle(.tertiary)
-                }
+                if let shortcut { KeyCap(keys: shortcut) }
             }
-            .padding(.horizontal, 10)
-            .frame(height: 34)
-            .background(RoundedRectangle(cornerRadius: 7).fill(hovering ? Theme.hoverFill : Theme.subtleFill))
+            .padding(.horizontal, 12)
+            .frame(height: 36)
+            .background(RoundedRectangle(cornerRadius: 8).fill(hovering ? Theme.hoverFill : .clear))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -513,7 +548,7 @@ private struct RecentRow: View {
         let exists = FileManager.default.fileExists(atPath: path)
         HStack(spacing: 10) {
             Image(systemName: "folder.fill")
-                .foregroundStyle(exists ? Color.accentColor.opacity(0.8) : Color.secondary.opacity(0.4))
+                .foregroundStyle(exists ? Color.secondary : Color.secondary.opacity(0.4))
             VStack(alignment: .leading, spacing: 1) {
                 Text((path as NSString).lastPathComponent)
                     .font(.system(size: 13, weight: .medium))

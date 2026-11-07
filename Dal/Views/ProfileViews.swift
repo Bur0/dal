@@ -14,7 +14,7 @@ struct ProfileMenu: View {
             HStack(spacing: 6) {
                 AvatarView(name: identity.name, email: identity.email, size: 18)
                 Text(profiles.active?.label ?? "Git config")
-                    .font(.system(size: 11.5, weight: .medium))
+                    .font(.system(size: 12, weight: .medium))
                 Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold)).foregroundStyle(.secondary)
             }
             .padding(.horizontal, 7)
@@ -89,8 +89,8 @@ private struct ProfilePicker: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(title.uppercased())
-                .font(.system(size: 10, weight: .semibold))
+            Text(title)
+                .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 10)
                 .padding(.bottom, 4)
@@ -133,7 +133,7 @@ private struct PickerRow: View {
             HStack(spacing: 9) {
                 AvatarView(name: name, email: email, size: 26)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(title).font(.system(size: 12.5, weight: .medium))
+                    Text(title).font(.system(size: 13, weight: .medium))
                     if !detail.isEmpty {
                         Text(detail).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
                     }
@@ -168,7 +168,7 @@ struct ProfilesSettings: View {
                             AvatarView(name: profile.authorName, email: profile.authorEmail, size: 22)
                             VStack(alignment: .leading, spacing: 1) {
                                 Text(profile.label).font(.system(size: 12, weight: .medium))
-                                Text(profile.displayEmail).font(.system(size: 10.5)).foregroundStyle(.secondary).lineLimit(1)
+                                Text(profile.displayEmail).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
                             }
                             Spacer()
                             if profiles.activeID == profile.id {

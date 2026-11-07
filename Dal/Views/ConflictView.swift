@@ -64,9 +64,9 @@ struct ConflictView: View {
         HStack(spacing: 10) {
             ChangeIcon(kind: .conflicted)
             VStack(alignment: .leading, spacing: 1) {
-                Text(change.path).font(.system(size: 12.5, weight: .semibold)).lineLimit(1).truncationMode(.head)
+                Text(change.path).font(.system(size: 13, weight: .semibold)).lineLimit(1).truncationMode(.head)
                 Text(conflicts.isEmpty ? "Conflict" : "\(resolvedCount) of \(conflicts.count) conflicts resolved")
-                    .font(.system(size: 10.5)).foregroundStyle(.secondary)
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
             }
             Spacer()
             Menu("Take Whole File") {
@@ -102,7 +102,7 @@ struct ConflictView: View {
             HStack(spacing: 8) {
                 Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Theme.modified)
                 Text("\(change.fileName) changed on disk since you opened it. Reload to resolve the current version.")
-                    .font(.system(size: 11.5))
+                    .font(.system(size: 12))
                 Spacer()
                 Button("Reload") { load() }.controlSize(.small)
             }
@@ -216,8 +216,8 @@ private struct ConflictBlock: View {
                 .background(Theme.subtleFill)
             }
         }
-        .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(choice == nil ? Theme.conflict.opacity(0.6) : Theme.added.opacity(0.4)))
-        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.primary.opacity(0.12)))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
     }
@@ -231,14 +231,14 @@ private struct ConflictBlock: View {
             }
             .padding(.horizontal, 12)
             .frame(height: 30)
-            .background(color.opacity(0.16))
+            .background(color.opacity(0.12))
             ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
                 Text(line.isEmpty ? " " : line)
                     .font(Theme.mono)
                     .padding(.leading, 16)
                     .padding(.vertical, 1)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(color.opacity(0.07))
+                    .background(color.opacity(0.05))
             }
             if lines.isEmpty {
                 Text("(empty)").font(.system(size: 11)).foregroundStyle(.tertiary).padding(.leading, 16).padding(.vertical, 3)
@@ -264,7 +264,7 @@ private struct ConflictBlock: View {
             }
             .padding(.horizontal, 12)
             .frame(height: 30)
-            .background(Theme.added.opacity(0.1))
+            .background(Theme.added.opacity(0.08))
             ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
                 Text(line.isEmpty ? " " : line)
                     .font(Theme.mono)

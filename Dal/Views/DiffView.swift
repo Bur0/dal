@@ -70,11 +70,11 @@ struct DiffView: View {
                     Text(change.directory).foregroundStyle(.secondary)
                     Text(change.fileName).fontWeight(.semibold)
                 }
-                .font(.system(size: 12.5))
+                .font(.system(size: 13))
                 .lineLimit(1)
                 .truncationMode(.head)
                 if let old = change.oldPath {
-                    Text("renamed from \(old)").font(.system(size: 10.5)).foregroundStyle(.tertiary)
+                    Text("renamed from \(old)").font(.system(size: 11)).foregroundStyle(.tertiary)
                 }
             }
             if let diff, !diff.isBinary {
@@ -85,11 +85,7 @@ struct DiffView: View {
                 .font(.system(size: 11, weight: .semibold).monospacedDigit())
             }
             Spacer()
-            Toggle(isOn: $wrap) { Image(systemName: "text.word.spacing") }
-                .toggleStyle(.button)
-                .controlSize(.small)
-                .help("Wrap long lines")
-                .accessibilityLabel("Wrap long lines")
+            IconToggle(symbol: "text.word.spacing", label: "Wrap long lines", isOn: $wrap)
             if case .working(let c, let staged) = focus {
                 if staged {
                     Button("Unstage File") { store.unstage(c) }.controlSize(.small)
@@ -174,7 +170,6 @@ struct DiffView: View {
                     store.apply(.stage, diff: diff, hunk: hunk, lines: selected)
                 }
                 .controlSize(.small)
-                .buttonStyle(.borderedProminent)
             case .staged:
                 Button("Unstage \(suffix)") {
                     store.apply(.unstage, diff: diff, hunk: hunk, lines: selected)
@@ -183,13 +178,13 @@ struct DiffView: View {
             case .readOnly:
                 if case .working = focus, change.kind != .untracked {
                     Text("Whole file only (rename / new / deleted)")
-                        .font(.system(size: 10.5)).foregroundStyle(.tertiary)
+                        .font(.system(size: 11)).foregroundStyle(.tertiary)
                 }
             }
         }
         .padding(.horizontal, 12)
         .frame(height: 32)
-        .background(Color.accentColor.opacity(0.07))
+        .background(Color.primary.opacity(0.04))
         .overlay(alignment: .top) { Divider() }
         .overlay(alignment: .bottom) { Divider() }
     }

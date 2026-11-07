@@ -19,8 +19,8 @@ struct WorkingChangesView: View {
                     if !status.conflicted.isEmpty {
                         conflictSection
                     }
-                    fileSection(title: "Unstaged Files", files: status.unstaged, staged: false, isOpen: $unstagedOpen)
-                    fileSection(title: "Staged Files", files: status.staged, staged: true, isOpen: $stagedOpen)
+                    fileSection(title: "Unstaged files", files: status.unstaged, staged: false, isOpen: $unstagedOpen)
+                    fileSection(title: "Staged files", files: status.staged, staged: true, isOpen: $stagedOpen)
                     if status.isEmpty && store.loaded {
                         EmptyState(symbol: "checkmark.circle", title: "Working tree clean",
                                    message: "Edit files in this repository and they'll appear here.")
@@ -54,7 +54,7 @@ struct WorkingChangesView: View {
                 .help("Stash all changes including new files")
             }
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 16)
         .frame(height: 52)
     }
 
@@ -64,7 +64,7 @@ struct WorkingChangesView: View {
                 SectionTitle(title: "Conflicts", count: status.conflicted.count)
                 Spacer()
             }
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 16)
             .padding(.vertical, 6)
             ForEach(status.conflicted) { change in
                 FileRow(change: change, selected: store.fileFocus == .conflict(change),
@@ -118,7 +118,7 @@ struct WorkingChangesView: View {
                     .help(staged ? "Unstage everything" : "Stage all changes (⇧⌘A)")
                 }
             }
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 16)
             .padding(.vertical, 6)
 
             if isOpen.wrappedValue {
@@ -134,10 +134,10 @@ struct WorkingChangesView: View {
                     .contextMenu { fileMenu(change, staged: staged) }
                 }
                 if files.isEmpty {
-                    Text(staged ? "Stage files to include them in the next commit." : "Nothing to stage.")
+                    Text(staged ? "Staged files go into the next commit" : "Nothing to stage")
                         .font(.system(size: 11))
                         .foregroundStyle(.tertiary)
-                        .padding(.horizontal, 14)
+                        .padding(.horizontal, 16)
                         .padding(.vertical, 4)
                 }
             }
@@ -180,7 +180,7 @@ struct WorkingChangesView: View {
                     .focused($focus, equals: .summary)
                     .onSubmit { focus = .body }   // ⌘↩ commits; Return moves on to the description
                 Text("\(72 - store.commitSummary.count)")
-                    .font(.system(size: 10.5).monospacedDigit())
+                    .font(.system(size: 11).monospacedDigit())
                     .foregroundStyle(store.commitSummary.count > 72 ? Theme.deleted : Color.secondary.opacity(0.6))
                     .help("Keep the summary under 72 characters")
             }
@@ -215,7 +215,7 @@ struct WorkingChangesView: View {
                 store.commit()
             } label: {
                 Text(commitButtonTitle)
-                    .font(.system(size: 12.5, weight: .semibold))
+                    .font(.system(size: 13, weight: .semibold))
                     .frame(maxWidth: .infinity)
                     .frame(height: 22)
             }
@@ -225,7 +225,7 @@ struct WorkingChangesView: View {
             .keyboardShortcut(.return, modifiers: .command)
             .help(commitHelp)
         }
-        .padding(14)
+        .padding(16)
         .onReceive(NotificationCenter.default.publisher(for: .focusCommitMessage)) { _ in focus = .summary }
     }
 

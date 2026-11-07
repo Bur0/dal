@@ -59,6 +59,22 @@ enum DebugSnapshot {
             case "collapse":
                 let app = AppState.shared
                 if let i = Int(arg), i < app.groups.count { app.toggleCollapsed(app.groups[i]) }
+            case "welcome":
+                AppState.shared.select(nil)
+            case "conflict":
+                if let store, let index = Int(arg), index < store.status.conflicted.count {
+                    store.fileFocus = .conflict(store.status.conflicted[index])
+                }
+            case "commitfile":
+                // Opens the diff of the selected commit's first file.
+                if let store, case .commit(let sha) = store.selection, let commit = store.commit(sha) {
+                    Task {
+                        let changes = (try? await store.git.changes(sha: sha, parent: commit.parents.first)) ?? []
+                        if let first = changes.first {
+                            store.fileFocus = .commit(sha: sha, parent: commit.parents.first, change: first)
+                        }
+                    }
+                }
             case "dumpeffects":
                 // Lists translucent views that blend with the desktop (invisible in snapshots).
                 var found: [String] = []

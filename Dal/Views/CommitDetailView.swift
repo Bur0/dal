@@ -20,7 +20,7 @@ struct CommitDetailView: View {
                     filesHeader
                     files
                 }
-                .padding(14)
+                .padding(16)
             }
         }
         .task(id: commit.sha) {
@@ -42,7 +42,7 @@ struct CommitDetailView: View {
                 store.copy(commit.sha, label: "Copied \(commit.shortSha)")
             } label: {
                 HStack(spacing: 4) {
-                    Text(commit.shortSha).font(.system(size: 11.5, design: .monospaced))
+                    Text(commit.shortSha).font(.system(size: 12, design: .monospaced))
                     Image(systemName: "doc.on.doc").font(.system(size: 9))
                 }
             }
@@ -86,7 +86,7 @@ struct CommitDetailView: View {
             HStack(alignment: .top, spacing: 10) {
                 AvatarView(name: commit.authorName, email: commit.authorEmail, size: 34)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(commit.authorName).font(.system(size: 12.5, weight: .semibold))
+                    Text(commit.authorName).font(.system(size: 13, weight: .semibold))
                     Text(commit.authorEmail).font(.system(size: 11)).foregroundStyle(.secondary).textSelection(.enabled)
                     Text("authored \(Formatters.full.string(from: commit.authorDate))")
                         .font(.system(size: 11)).foregroundStyle(.tertiary)
@@ -126,13 +126,12 @@ struct CommitDetailView: View {
             if deleted > 0 { stat("minus", deleted, "deleted", Theme.deleted) }
             if renamed > 0 { stat("arrow.right", renamed, "renamed", Theme.renamed) }
             Spacer()
-            Picker("", selection: $treeMode) {
-                Image(systemName: "list.bullet").tag(false).help("Path")
-                Image(systemName: "list.bullet.indent").tag(true).help("Tree")
+            HStack(spacing: 2) {
+                IconToggle(symbol: "list.bullet", label: "Show paths",
+                           isOn: Binding(get: { !treeMode }, set: { if $0 { treeMode = false } }))
+                IconToggle(symbol: "list.bullet.indent", label: "Group by folder",
+                           isOn: Binding(get: { treeMode }, set: { if $0 { treeMode = true } }))
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .fixedSize()
         }
     }
 
@@ -221,9 +220,9 @@ struct StashDetailView: View {
                 }
                 .padding(.horizontal, -10)
                 Text("New (untracked) files in a stash aren't listed here.")
-                    .font(.system(size: 10.5)).foregroundStyle(.tertiary)
+                    .font(.system(size: 11)).foregroundStyle(.tertiary)
             }
-            .padding(14)
+            .padding(16)
         }
         .task(id: stash.sha) {
             changes = (try? await store.git.changes(sha: stash.sha, parent: stash.sha + "^1")) ?? []

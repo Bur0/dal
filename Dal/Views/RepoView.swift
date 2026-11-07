@@ -243,7 +243,7 @@ struct RepoToolbar: View {
     private var repoAndBranch: some View {
         HStack(spacing: 14) {
             VStack(alignment: .leading, spacing: 1) {
-                Text("repository").font(.system(size: 10)).foregroundStyle(.tertiary).fixedSize()
+                Text("repository").font(.system(size: 11)).foregroundStyle(.tertiary).fixedSize()
                 Menu {
                     ForEach(app.recent.filter { $0 != store.url.path }.prefix(10), id: \.self) { path in
                         Button((path as NSString).lastPathComponent) { app.open(URL(fileURLWithPath: path)) }
@@ -263,7 +263,7 @@ struct RepoToolbar: View {
             Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold)).foregroundStyle(.tertiary)
                 .padding(.top, 10)
             VStack(alignment: .leading, spacing: 1) {
-                Text("branch").font(.system(size: 10)).foregroundStyle(.tertiary).fixedSize()
+                Text("branch").font(.system(size: 11)).foregroundStyle(.tertiary).fixedSize()
                 Menu {
                     ForEach(store.localBranches) { ref in
                         Button {
@@ -295,7 +295,7 @@ struct RepoToolbar: View {
                 .onExitCommand { store.searchText = ""; searchFocused = false }
             if !store.searchText.isEmpty {
                 Text("\(store.searchMatches.count)")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
                 Button {
@@ -329,8 +329,10 @@ private struct OngoingBanner: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(operation.title).font(.system(size: 12, weight: .semibold))
                 Text(store.status.conflicted.isEmpty
-                     ? "All conflicts resolved. Continue to finish."
-                     : "\(store.status.conflicted.count) conflicted file\(store.status.conflicted.count == 1 ? "" : "s"). Resolve them, then continue.")
+                     ? "All conflicts resolved, continue to finish"
+                     : store.status.conflicted.count == 1
+                        ? "Resolve 1 conflicted file, then continue"
+                        : "Resolve \(store.status.conflicted.count) conflicted files, then continue")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
             }
@@ -342,9 +344,9 @@ private struct OngoingBanner: View {
                 .disabled(!store.status.conflicted.isEmpty || store.busy != nil)
         }
         .controlSize(.small)
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 16)
         .padding(.vertical, 8)
-        .background(Theme.modified.opacity(0.12))
+        .background(Color.primary.opacity(0.05))
     }
 }
 
@@ -360,7 +362,7 @@ private struct ToastView: View {
                         .foregroundStyle(warning ? Theme.modified : Theme.added)
                     Text(text).font(.system(size: 12, weight: .medium))
                 }
-                .padding(.horizontal, 14)
+                .padding(.horizontal, 16)
                 .padding(.vertical, 9)
                 .background(.regularMaterial, in: Capsule())
                 .overlay(Capsule().strokeBorder(Theme.separator))

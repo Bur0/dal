@@ -153,7 +153,7 @@ struct SidebarView: View {
                     }
                 } header: {
                     HStack {
-                        header("Pull Requests", count: store.pullRequests.count, symbol: "arrow.triangle.pull")
+                        header("Pull requests", count: store.pullRequests.count, symbol: "arrow.triangle.pull")
                         Spacer()
                         Button { store.openCreatePR() } label: { Image(systemName: "plus") }
                             .buttonStyle(.plain)
@@ -185,6 +185,7 @@ struct SidebarView: View {
                 }
             }
             .listStyle(.sidebar)
+            .environment(\.sidebarRowSize, .small)
             // The sidebar list style is translucent and tints with the desktop wallpaper;
             // keep it opaque like the other panes.
             .scrollContentBackground(.hidden)
@@ -199,12 +200,12 @@ struct SidebarView: View {
                 set: { binding.wrappedValue = $0 })
     }
 
+    /// Section headers are plain text, like Finder's sidebar: the rows carry the icons.
     private func header(_ title: String, count: Int, symbol: String) -> some View {
         HStack(spacing: 6) {
-            Image(systemName: symbol).font(.system(size: 10))
-            Text(title.uppercased()).font(.system(size: 10.5, weight: .semibold))
+            Text(title).font(.system(size: 11, weight: .semibold))
             if count > 0 {
-                Text("\(count)").font(.system(size: 10, weight: .medium)).foregroundStyle(.tertiary)
+                Text("\(count)").font(.system(size: 11).monospacedDigit()).foregroundStyle(.tertiary)
             }
         }
         .foregroundStyle(.secondary)
@@ -222,7 +223,7 @@ struct SidebarView: View {
                  : error.contains("No such file") || error.contains("not found")
                  ? "Install the GitHub CLI: `brew install gh`"
                  : error)
-                .font(.system(size: 10.5))
+                .font(.system(size: 11))
                 .foregroundStyle(.tertiary)
                 .lineLimit(4)
                 .textSelection(.enabled)
@@ -257,7 +258,7 @@ private struct SidebarItem: View {
             Spacer(minLength: 2)
             if let trailing { trailing }
             if let detail {
-                Text(detail).font(.system(size: 10.5)).foregroundStyle(.tertiary).lineLimit(1)
+                Text(detail).font(.system(size: 11)).foregroundStyle(.tertiary).lineLimit(1)
             }
         }
         .padding(.horizontal, 4)
@@ -318,7 +319,7 @@ private struct TrackingPill: View {
                 Text("↓\(ref.behind)").help("\(ref.behind) commit(s) to pull")
             }
         }
-        .font(.system(size: 10, weight: .semibold))
+        .font(.system(size: 11, weight: .semibold))
         .monospacedDigit()
         .foregroundStyle(.secondary)
     }
@@ -359,7 +360,7 @@ private struct PullRequestRow: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(pr.title).font(.system(size: 12)).lineLimit(2)
                 Text("#\(pr.number) · \(pr.headRefName) → \(pr.baseRefName)")
-                    .font(.system(size: 10.5))
+                    .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
                     .truncationMode(.middle)
