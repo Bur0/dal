@@ -1,0 +1,77 @@
+name: Dal
+options:
+  bundleIdPrefix: com.burakalpkara
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+  developmentLanguage: en
+
+packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: "2.6.4"
+
+settings:
+  base:
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "5.0"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+
+targets:
+  Dal:
+    type: application
+    platform: macOS
+    sources:
+      - Dal
+    info:
+      path: Dal/Info.plist
+      properties:
+        CFBundleName: Dal
+        CFBundleDisplayName: Dal
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleIconName: AppIcon
+        LSApplicationCategoryType: public.app-category.developer-tools
+        LSMinimumSystemVersion: "14.0"
+        NSHumanReadableCopyright: "© 2026 Burak Alp Kara. MIT License."
+        SUFeedURL: https://raw.githubusercontent.com/Bur0/dal/main/appcast.xml
+        SUPublicEDKey: 8eWChZy2gKLttvejAfTkOxqTVKFWiqr+oE8XDCwJRss=
+        SUEnableAutomaticChecks: true
+        SUScheduledCheckInterval: 86400
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.burakalpkara.dal
+        PRODUCT_NAME: Dal
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+        DEVELOPMENT_TEAM: ""
+        ENABLE_HARDENED_RUNTIME: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        COMBINE_HIDPI_IMAGES: YES
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+    dependencies:
+      - package: Sparkle
+
+  DalTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - DalTests
+    settings:
+      base:
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+        GENERATE_INFOPLIST_FILE: YES
+    dependencies:
+      - target: Dal
+
+schemes:
+  Dal:
+    build:
+      targets:
+        Dal: all
+        DalTests: [test]
+    test:
+      targets:
+        - DalTests

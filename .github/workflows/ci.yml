@@ -1,0 +1,22 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate project
+        run: xcodegen generate
+      - name: Build and test
+        run: |
+          git config --global user.name "CI"
+          git config --global user.email "ci@example.com"
+          xcodebuild -project Dal.xcodeproj -scheme Dal -destination 'platform=macOS' \
+            -derivedDataPath build/ci CODE_SIGNING_ALLOWED=YES test
