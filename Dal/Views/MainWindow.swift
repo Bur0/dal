@@ -406,7 +406,7 @@ struct QuickSwitcher: View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass").foregroundStyle(Theme.secondaryText)
-                TextField("Jump to repository…", text: $query)
+                TextField("", text: $query, prompt: Text("Jump to repository"))
                     .textFieldStyle(.plain)
                     .font(.system(size: 15))
                     .focused($focused)
@@ -434,14 +434,16 @@ struct QuickSwitcher: View {
                 }
                 .onChange(of: highlighted) { _, i in proxy.scrollTo(i) }
             }
-            .frame(height: 360)
+            // Fits the list (up to ~8 rows) instead of a fixed tall box.
+            .frame(height: min(max(CGFloat(list.count) * 44 + 12, 120), 372))
             Divider()
             HStack(spacing: 14) {
                 hint("↑↓", "move")
                 hint("↩", "open")
                 hint("esc", "close")
                 Spacer()
-                Text("\(list.count) repositories").font(.system(size: 11).monospacedDigit()).foregroundStyle(Theme.mutedText)
+                Text(list.count == 1 ? "1 repository" : "\(list.count) repositories")
+                    .font(.system(size: 11).monospacedDigit()).foregroundStyle(Theme.mutedText)
             }
             .padding(.horizontal, 16)
             .frame(height: 36)
@@ -469,6 +471,14 @@ struct QuickSwitcher: View {
                     .font(.system(size: 11)).foregroundStyle(Theme.secondaryText).lineLimit(1).truncationMode(.middle)
             }
             Spacer()
+            if let branch = entry.store?.headBranch {
+                Text(branch)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(Theme.secondaryText)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: 140, alignment: .trailing)
+            }
             if let group = entry.group {
                 Text(group.name.isEmpty ? "group" : group.name)
                     .font(.system(size: 11, weight: .semibold))

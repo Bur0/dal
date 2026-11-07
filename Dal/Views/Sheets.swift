@@ -10,19 +10,35 @@ struct InputSheet: View {
     private var canSubmit: Bool { !text.trimmed.isEmpty && problem == nil }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(request.title).font(.system(size: 15, weight: .semibold))
-            if let message = request.message {
-                Text(message).font(.system(size: 12)).foregroundStyle(Theme.secondaryText)
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(request.title).font(.system(size: 15, weight: .semibold))
+                if let message = request.message {
+                    Text(message).font(.system(size: 12)).foregroundStyle(Theme.secondaryText)
+                }
             }
-            TextField(request.placeholder, text: $text)
+            TextField("", text: $text, prompt: Text(verbatim: request.placeholder))
                 .textFieldStyle(.roundedBorder)
                 .font(.system(size: 13))
                 .focused($focused)
                 .onSubmit(submit)
-            Text(problem?.isEmpty == false ? problem! : " ")
-                .font(.system(size: 11))
-                .foregroundStyle(Theme.deleted)
+                .onChange(of: text) { _, new in
+                    if let transform = request.transform {
+                        let cleaned = transform(new)
+                        if cleaned != new { text = cleaned }
+                    }
+                }
+                .padding(.top, 12)
+            // One status line: the validation problem in red, otherwise a quiet hint.
+            Group {
+                if let problem, !problem.isEmpty {
+                    Text(problem).foregroundStyle(Theme.deleted)
+                } else {
+                    Text(request.hint ?? " ").foregroundStyle(Theme.mutedText)
+                }
+            }
+            .font(.system(size: 11))
+            .padding(.top, 6)
             HStack {
                 Spacer()
                 Button("Cancel", role: .cancel) { dismiss() }
@@ -31,6 +47,7 @@ struct InputSheet: View {
                     .keyboardShortcut(.defaultAction)
                     .disabled(!canSubmit)
             }
+            .padding(.top, 16)
         }
         .padding(20)
         .frame(width: 400)
@@ -71,7 +88,7 @@ struct CloneSheet: View {
             Text("Clone a repository").font(.system(size: 15, weight: .semibold))
             VStack(alignment: .leading, spacing: 5) {
                 Text("URL").font(.system(size: 11, weight: .medium)).foregroundStyle(Theme.secondaryText)
-                TextField("https://github.com/owner/repo.git  or  git@github.com:owner/repo.git", text: $remote)
+                TextField("", text: $remote, prompt: Text(verbatim: "https://github.com/owner/repo.git"))
                     .textFieldStyle(.roundedBorder)
                     .onChange(of: remote) { _, _ in if !nameEdited { name = derivedName } }
             }
@@ -117,6 +134,14 @@ struct CloneSheet: View {
         }
         .padding(20)
         .frame(width: 520)
+        .onAppear {
+            // A git URL on the clipboard is almost always what you're about to clone.
+            if remote.isEmpty, let clip = NSPasteboard.general.string(forType: .string)?.trimmed,
+               !clip.contains(" "), !clip.contains("\n"),
+               clip.hasPrefix("git@") || (clip.hasPrefix("https://") && (clip.hasSuffix(".git") || clip.contains("github.com/") || clip.contains("gitlab.com/"))) {
+                remote = clip
+            }
+        }
     }
 
     private func choose() {
@@ -159,16 +184,30 @@ struct CreatePRSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Create pull request").font(.system(size: 15, weight: .semibold))
-            HStack(spacing: 10) {
+            // Labels outside the pickers so both pickers share the width equally.
+            HStack(spacing: 8) {
+                Text("From").foregroundStyle(Theme.secondaryText)
                 Picker("From", selection: $head) {
                     ForEach(branchNames, id: \.self) { Text($0).tag($0) }
                 }
-                Image(systemName: "arrow.right").foregroundStyle(Theme.secondaryText)
+                .labelsHidden()
+                .frame(maxWidth: .infinity)
+                Image(systemName: "arrow.right").foregroundStyle(Theme.secondaryText).padding(.horizontal, 4)
+                Text("Into").foregroundStyle(Theme.secondaryText)
                 Picker("Into", selection: $base) {
+                    if remoteBranchNames.isEmpty { Text("No remote branches").tag("") }
                     ForEach(remoteBranchNames, id: \.self) { Text($0).tag($0) }
                 }
+                .labelsHidden()
+                .frame(maxWidth: .infinity)
+                .disabled(remoteBranchNames.isEmpty)
             }
-            TextField("Title", text: $title)
+            .font(.system(size: 13))
+            if remoteBranchNames.isEmpty {
+                Text("This repository has no remote branches yet. Add a remote and push a branch first.")
+                    .font(.system(size: 11)).foregroundStyle(Theme.modified)
+            }
+            TextField("", text: $title, prompt: Text("Title"))
                 .textFieldStyle(.roundedBorder)
                 .font(.system(size: 13))
             ZStack(alignment: .topLeading) {

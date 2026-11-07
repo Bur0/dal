@@ -93,8 +93,17 @@ extension RepoStore {
             placeholder: "feature/my-branch",
             confirmLabel: checkout ? "Create & Checkout" : "Create",
             validate: { [weak self] name in self?.branchNameProblem(name) },
+            transform: RepoStore.branchNameTyping,
+            hint: "Spaces become dashes",
             action: { [weak self] name in self?.createBranch(name.trimmed, at: sha, checkout: checkout) }
         )
+    }
+
+    /// Live clean-up while typing a branch name: spaces → dashes, no leading dash.
+    static func branchNameTyping(_ raw: String) -> String {
+        var name = raw.replacingOccurrences(of: " ", with: "-")
+        while name.hasPrefix("-") { name.removeFirst() }
+        return name
     }
 
     func branchNameProblem(_ raw: String) -> String? {
@@ -169,6 +178,7 @@ extension RepoStore {
         input = InputRequest(title: "Rename branch", placeholder: ref.name, initial: ref.name,
                              confirmLabel: "Rename",
                              validate: { [weak self] name in name.trimmed == ref.name ? "" : self?.branchNameProblem(name) },
+                             transform: RepoStore.branchNameTyping,
                              action: { [weak self] name in
             guard let self else { return }
             run("Rename branch", success: "Renamed to \(name.trimmed)") { [self] in

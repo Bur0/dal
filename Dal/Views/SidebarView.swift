@@ -212,7 +212,8 @@ struct SidebarView: View {
     }
 
     private func emptyRow(_ text: String) -> some View {
-        Text(text).font(.system(size: 11)).foregroundStyle(Theme.mutedText).padding(.leading, 4)
+        // Lines up with item labels (icon column 14 + gap 6).
+        Text(text).font(.system(size: 11)).foregroundStyle(Theme.mutedText).padding(.leading, 20)
     }
 
     private func githubHint(_ error: String) -> some View {

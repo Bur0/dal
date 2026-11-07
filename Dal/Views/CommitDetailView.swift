@@ -16,6 +16,7 @@ struct CommitDetailView: View {
                     shaBar
                     message
                     people
+                    actions
                     Divider()
                     filesHeader
                     files
@@ -49,13 +50,39 @@ struct CommitDetailView: View {
             .buttonStyle(.plain)
             .foregroundStyle(Color.accentColor)
             .help("Copy full SHA")
-            Spacer()
             if commit.isMerge {
-                Text("MERGE").font(.system(size: 9.5, weight: .bold)).foregroundStyle(Theme.secondaryText)
-                    .padding(.horizontal, 6).frame(height: 17)
-                    .background(Capsule().fill(Theme.subtleFill))
+                Text("· merge commit").font(.system(size: 11)).foregroundStyle(Theme.mutedText)
             }
+            Spacer()
+            Menu {
+                CommitMenu(store: store, commit: commit, badges: store.badges[commit.sha] ?? [])
+            } label: {
+                Image(systemName: "ellipsis").font(.system(size: 13, weight: .semibold))
+                    .frame(width: 24, height: 22)
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .foregroundStyle(Theme.secondaryText)
+            .help("All actions for this commit")
+            .accessibilityLabel("Commit actions")
         }
+    }
+
+    /// The common actions, visible instead of only in the context menu.
+    private var actions: some View {
+        HStack(spacing: 8) {
+            Button("Checkout") { store.checkout(commit.sha) }
+                .help("Check out this commit (detached HEAD)")
+            Button("Branch…") { store.promptCreateBranch(at: commit.sha) }
+                .help("Create a branch starting here")
+            if commit.sha != store.headSha {
+                Button("Cherry-pick") { store.cherryPick(commit) }
+                    .help("Apply this commit on top of \(store.headBranch ?? "HEAD")")
+            }
+            Spacer()
+        }
+        .controlSize(.small)
     }
 
     private var message: some View {

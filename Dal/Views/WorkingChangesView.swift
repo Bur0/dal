@@ -105,10 +105,21 @@ struct WorkingChangesView: View {
                 Spacer()
                 if !files.isEmpty {
                     if !staged {
-                        Button("Discard All") { store.discardAll() }
-                            .buttonStyle(.borderless)
-                            .font(.system(size: 11))
-                            .foregroundStyle(Theme.secondaryText)
+                        // Destructive actions live one click away, not next to "Stage All".
+                        Menu {
+                            Button("Stash All Changes") { store.stash() }
+                            Divider()
+                            Button("Discard All Changes…", role: .destructive) { store.discardAll() }
+                        } label: {
+                            Image(systemName: "ellipsis").font(.system(size: 12, weight: .semibold))
+                                .frame(width: 22, height: 20)
+                        }
+                        .menuStyle(.borderlessButton)
+                        .menuIndicator(.hidden)
+                        .fixedSize()
+                        .foregroundStyle(Theme.secondaryText)
+                        .help("More actions")
+                        .accessibilityLabel("More actions for unstaged files")
                     }
                     Button(staged ? "Unstage All" : "Stage All") {
                         staged ? store.unstageAll() : store.stageAll()
@@ -179,10 +190,14 @@ struct WorkingChangesView: View {
                     .font(.system(size: 13))
                     .focused($focus, equals: .summary)
                     .onSubmit { focus = .body }   // ⌘↩ commits; Return moves on to the description
-                Text("\(72 - store.commitSummary.count)")
-                    .font(.system(size: 11).monospacedDigit())
-                    .foregroundStyle(store.commitSummary.count > 72 ? Theme.deleted : Theme.mutedText)
-                    .help("Keep the summary under 72 characters")
+                // Shown once you type: amber past 50 (git's soft limit), red past 72.
+                if !store.commitSummary.isEmpty {
+                    Text("\(72 - store.commitSummary.count)")
+                        .font(.system(size: 11).monospacedDigit())
+                        .foregroundStyle(store.commitSummary.count > 72 ? Theme.deleted
+                                         : store.commitSummary.count > 50 ? Theme.modified : Theme.mutedText)
+                        .help("Summaries read best under 50 characters; 72 is the limit most tools show in full")
+                }
             }
             .padding(.horizontal, 9)
             .frame(height: 30)
@@ -229,10 +244,14 @@ struct WorkingChangesView: View {
         .onReceive(NotificationCenter.default.publisher(for: .focusCommitMessage)) { _ in focus = .summary }
     }
 
+    /// The button says what's missing instead of just going grey.
     private var commitButtonTitle: String {
-        if store.amend { return "Amend Previous Commit" }
+        if !status.conflicted.isEmpty { return "Resolve conflicts to commit" }
         let n = status.staged.count
-        return n == 0 ? "Stage files to commit" : "Commit \(n) file\(n == 1 ? "" : "s")"
+        if !store.amend && n == 0 { return "Stage files to commit" }
+        if store.commitSummary.trimmed.isEmpty { return "Write a summary to commit" }
+        if store.amend { return "Amend Previous Commit" }
+        return "Commit \(n) File\(n == 1 ? "" : "s")"
     }
 
     private var commitHelp: String {

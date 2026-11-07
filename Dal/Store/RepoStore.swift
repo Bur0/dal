@@ -45,6 +45,9 @@ struct InputRequest: Identifiable {
     var initial: String = ""
     var confirmLabel: String
     var validate: ((String) -> String?)? = nil
+    /// Applied while typing, e.g. spaces become dashes in branch names.
+    var transform: ((String) -> String)? = nil
+    var hint: String? = nil
     var action: (String) -> Void
 }
 

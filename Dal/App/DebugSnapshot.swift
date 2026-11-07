@@ -98,6 +98,35 @@ enum DebugSnapshot {
                 try? lines.joined(separator: "\n").write(toFile: arg, atomically: true, encoding: .utf8)
             case "switcher":
                 AppState.shared.showSwitcher = true
+            case "branchsheet":
+                store?.promptCreateBranch()
+            case "clonesheet":
+                AppState.shared.showClone = true
+            case "prsheet":
+                store?.openCreatePR()
+            case "discardalert":
+                if let store, let change = store.status.unstaged.first { store.discard(change) }
+            case "toast":
+                store?.showToast(arg.isEmpty ? "Pushed main → origin/main" : arg)
+            case "dismiss":
+                store?.input = nil
+                store?.alert = nil
+                store?.showCreatePR = false
+                AppState.shared.showClone = false
+                AppState.shared.showSwitcher = false
+                for window in NSApp.windows where window.isVisible && window.title.contains("Settings") { window.close() }
+            case "settings":
+                if !arg.isEmpty { UserDefaults.standard.set(arg, forKey: "settingsTab") }
+                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+            case "shotsheet":
+                // The front sheet (or alert) attached to the main window.
+                if let sheet = NSApp.windows.compactMap(\.attachedSheet).first { capture(sheet, to: arg) }
+            case "shotwin":
+                // shotwin:Settings:/path — first visible window whose title contains the text.
+                let bits = arg.split(separator: ":", maxSplits: 1).map(String.init)
+                if bits.count == 2, let window = NSApp.windows.first(where: { $0.isVisible && $0.title.contains(bits[0]) }) {
+                    capture(window, to: bits[1])
+                }
             case "quit":
                 NSApp.terminate(nil)
             default:
@@ -107,8 +136,12 @@ enum DebugSnapshot {
     }
 
     static func capture(to path: String) {
-        guard let window = NSApp.windows.first(where: { $0.isVisible && $0.contentView != nil }),
-              let view = window.contentView?.superview ?? window.contentView else { return }
+        guard let window = NSApp.windows.first(where: { $0.isVisible && $0.contentView != nil && $0.sheetParent == nil }) else { return }
+        capture(window, to: path)
+    }
+
+    static func capture(_ window: NSWindow, to path: String) {
+        guard let view = window.contentView?.superview ?? window.contentView else { return }
         let bounds = view.bounds
         guard let rep = view.bitmapImageRepForCachingDisplay(in: bounds) else { return }
         view.cacheDisplay(in: bounds, to: rep)
