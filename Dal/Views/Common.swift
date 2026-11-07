@@ -49,7 +49,12 @@ enum Theme {
     static let mono = Font.system(size: 12, design: .monospaced)
 
     static let separator = Color(nsColor: .separatorColor)
-    static let panel = Color(nsColor: .controlBackgroundColor)
+    /// Three surfaces so the layout reads at a glance: the content in the middle is the deepest
+    /// (darkest in dark mode, white in light), the side panels sit one step out, the chrome one more.
+    /// Content: the graph, diffs and the merge tool (also the fill of text fields).
+    static let panel = dynamic(light: Color(hex: 0xFFFFFF), dark: Color(hex: 0x19191B))
+    /// Side panels: branches/remotes on the left, commit or changes on the right.
+    static let sidebar = dynamic(light: Color(hex: 0xF3F3F5), dark: Color(hex: 0x222225))
     static let window = Color(nsColor: .windowBackgroundColor)
     /// Tab bar and toolbar: opaque (materials there pick up the desktop colour).
     static let chrome = Color(nsColor: NSColor(name: nil) { appearance in

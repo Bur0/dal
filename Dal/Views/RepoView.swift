@@ -131,7 +131,7 @@ private struct DetailPanel: View {
                 WorkingChangesView(store: store)
             }
         }
-        .background(Theme.window)
+        .background(Theme.sidebar)
     }
 }
 

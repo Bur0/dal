@@ -189,7 +189,7 @@ struct SidebarView: View {
             // The sidebar list style is translucent and tints with the desktop wallpaper;
             // keep it opaque like the other panes.
             .scrollContentBackground(.hidden)
-            .background(Theme.window)
+            .background(Theme.sidebar)
             .environment(\.defaultMinListRowHeight, 24)
         }
     }
