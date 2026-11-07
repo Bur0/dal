@@ -31,7 +31,7 @@
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
 	<key>SUFeedURL</key>
-	<string>https://raw.githubusercontent.com/Bur0/dal/main/appcast.xml</string>
+	<string>https://raw.githubusercontent.com/Bur0/dal-releases/main/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>8eWChZy2gKLttvejAfTkOxqTVKFWiqr+oE8XDCwJRss=</string>
 	<key>SUScheduledCheckInterval</key>

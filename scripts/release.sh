@@ -51,7 +51,7 @@ SIGN_UPDATE=$(find build -type f -path '*Sparkle/bin/sign_update' | head -1)
 SIGNATURE=$("$SIGN_UPDATE" "$ZIP")
 echo "▸ Signed update: $SIGNATURE"
 
-git add project.yml
+git add project.yml Dal/Info.plist
 git commit -qm "Release $VERSION"
 git tag "v$VERSION"
 git push -q origin HEAD "v$VERSION"
