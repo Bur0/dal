@@ -38,7 +38,11 @@ targets:
         SUFeedURL: https://raw.githubusercontent.com/Bur0/dal-releases/main/appcast.xml
         SUPublicEDKey: 8eWChZy2gKLttvejAfTkOxqTVKFWiqr+oE8XDCwJRss=
         SUEnableAutomaticChecks: true
-        SUScheduledCheckInterval: 86400
+        SUScheduledCheckInterval: 3600
+        SUAutomaticallyUpdate: true
+        SUAllowsAutomaticUpdates: true
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.burakalpkara.dal

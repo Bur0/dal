@@ -273,6 +273,10 @@ private struct GeneralSettings: View {
             Section("Updates") {
                 Toggle("Check for updates automatically", isOn: Binding(
                     get: { updater.automaticallyChecks }, set: { updater.automaticallyChecks = $0 }))
+                Toggle("Download updates in the background", isOn: Binding(
+                    get: { updater.automaticallyDownloads }, set: { updater.automaticallyDownloads = $0 }))
+                Text("When an update is ready, “Update ready · Restart Dal” appears at the top right. It also installs when you quit.")
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
                 HStack {
                     Text("Version \(updater.version)").foregroundStyle(.secondary)
                     Spacer()

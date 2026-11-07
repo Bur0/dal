@@ -154,6 +154,14 @@ struct VersionBadge: View {
     @EnvironmentObject private var updater: Updater
 
     var body: some View {
+        if let ready = updater.readyVersion {
+            UpdateReadyButton(version: ready) { updater.installAndRelaunch() }
+        } else {
+            versionMenu
+        }
+    }
+
+    private var versionMenu: some View {
         Menu {
             Text("Dal \(updater.version)")
             Divider()
@@ -172,6 +180,32 @@ struct VersionBadge: View {
         .foregroundStyle(.tertiary)
         .help("Dal \(updater.version) — click to check for updates")
         .accessibilityLabel("Dal version \(updater.version)")
+    }
+}
+
+/// Shown in place of the version once an update has downloaded in the background.
+private struct UpdateReadyButton: View {
+    let version: String
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.down.circle.fill").font(.system(size: 12))
+                Text("Update ready · Restart Dal").font(.system(size: 12, weight: .medium))
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 10)
+            .frame(height: 24)
+            .background(RoundedRectangle(cornerRadius: 6).fill(Color.accentColor.opacity(hovering ? 1 : 0.88)))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help("Dal \(version) is downloaded. Click to restart and install it — or it installs the next time you quit.")
+        .accessibilityLabel("Update to Dal \(version) ready. Restart to install.")
+        .transition(.opacity.combined(with: .scale(scale: 0.96)))
     }
 }
 
