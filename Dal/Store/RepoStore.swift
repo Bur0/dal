@@ -157,6 +157,8 @@ final class RepoStore: Identifiable {
     var laneCount = 1
     var refs: [Ref] = []
     var badges: [String: [RefBadge]] = [:]
+    /// Lane colour index of the checked-out commit (nil when it isn't in the loaded graph).
+    var headLaneColor: Int?
     var headBranch: String?
     var headSha: String?
     var status = WorkingStatus()
@@ -475,6 +477,7 @@ final class RepoStore: Identifiable {
         }
         items = result
         laneOwners = owners
+        headLaneColor = headSha.flatMap { head in result.first { $0.commit?.sha == head }?.row.color }
         itemIndex = Dictionary(result.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { a, _ in a })
         laneCount = layout.width
     }

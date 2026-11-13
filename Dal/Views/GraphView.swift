@@ -172,7 +172,8 @@ private struct GraphRowView: View {
     }
 
     private var badges: [RefBadge] { item.commit.flatMap { store.badges[$0.sha] } ?? [] }
-    private var laneColor: Color { Theme.lane(item.row.color) }
+    private var laneColor: Color { Theme.lane(item.row.color, head: store.headLaneColor) }
+    private var isHeadCommit: Bool { item.commit != nil && item.commit?.sha == store.headSha }
     private var dimmed: Bool {
         guard !store.searchText.trimmed.isEmpty else { return false }
         guard let commit = item.commit else { return true }
@@ -183,7 +184,8 @@ private struct GraphRowView: View {
         HStack(spacing: 0) {
             refCell
                 .frame(width: columns.refWidth, alignment: .leading)
-            GraphCell(row: item.row, commit: item.commit, isWIP: item.isWIP, connector: connectorOpacity, width: columns.graphWidth)
+            GraphCell(row: item.row, commit: item.commit, isWIP: item.isWIP, connector: connectorOpacity, width: columns.graphWidth,
+                      headLane: store.headLaneColor)
             messageCell
                 .padding(.leading, 10)
                 .padding(.trailing, 14)
@@ -305,6 +307,9 @@ private struct GraphRowView: View {
             Color.accentColor.opacity(0.16)
         } else if hovering {
             Theme.hoverFill
+        } else if isHeadCommit {
+            // Where you are, findable even when the branch label scrolls out of sight.
+            Color.accentColor.opacity(0.08)
         } else {
             Color.clear
         }
@@ -330,7 +335,8 @@ private struct GraphRowView: View {
                             .foregroundStyle(Theme.secondaryText)
                             .padding(.horizontal, 6)
                             .frame(height: 21)
-                            .background(RoundedRectangle(cornerRadius: 5).fill(laneColor.opacity(0.18)))
+                            .background(RoundedRectangle(cornerRadius: 5).fill(Theme.badgeFill))
+                            .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(Theme.badgeStroke))
                     }
                     .menuStyle(.borderlessButton)
                     .menuIndicator(.hidden)
@@ -377,7 +383,7 @@ private struct GraphRowView: View {
     }
 
     private var connectorOpacity: Double {
-        if let first = badges.first { return first.isHead ? 1 : 0.7 }
+        if let first = badges.first { return first.isHead ? 1 : 0.8 }
         if isHovered, !item.isWIP, store.laneOwners[item.row.color] != nil { return 0.3 }
         return 0
     }
@@ -481,13 +487,15 @@ struct GraphCell: View {
     /// Opacity of the line from the branch label to this row's node (0 = none).
     let connector: Double
     let width: CGFloat
+    /// The checked-out branch's lane: drawn in the accent colour, the others dimmed.
+    var headLane: Int? = nil
 
     static func x(_ lane: Int) -> CGFloat { 12 + CGFloat(lane) * Theme.laneWidth }
 
     var body: some View {
         let height = Theme.rowHeight
         let nodeX = Self.x(row.lane)
-        let color = Theme.lane(row.color)
+        let color = Theme.lane(row.color, head: headLane)
         ZStack(alignment: .topLeading) {
             Canvas { context, size in
                 let mid = size.height / 2
@@ -499,7 +507,8 @@ struct GraphCell: View {
                     path.addLine(to: CGPoint(x: nodeX, y: mid))
                     context.stroke(path, with: .color(color.opacity(connector)), lineWidth: 2)
                 }
-                for line in row.lines {
+                // The current branch's lines go on top where lanes cross.
+                for line in row.lines.filter({ $0.color != headLane }) + row.lines.filter({ $0.color == headLane }) {
                     var path = Path()
                     switch line.kind {
                     case .pass:
@@ -534,8 +543,9 @@ struct GraphCell: View {
                         }
                     }
                     let isWIPLine = isWIP && line.kind == .fromNode
-                    context.stroke(path, with: .color(Theme.lane(line.color)),
-                                   style: StrokeStyle(lineWidth: 2, lineCap: .round,
+                    let onHead = headLane != nil && line.color == headLane
+                    context.stroke(path, with: .color(Theme.lane(line.color, head: headLane)),
+                                   style: StrokeStyle(lineWidth: onHead ? 2.5 : 2, lineCap: .round,
                                                       dash: isWIPLine ? [3, 3] : []))
                 }
             }

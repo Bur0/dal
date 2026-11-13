@@ -110,7 +110,7 @@ struct CommitDetailView: View {
             if let refs = store.badges[commit.sha], !refs.isEmpty {
                 FlowRow(spacing: 4) {
                     ForEach(refs) { badge in
-                        RefBadgeView(badge: badge, color: Theme.lane(store.laneColor(for: commit.sha)))
+                        RefBadgeView(badge: badge, color: Theme.lane(store.laneColor(for: commit.sha), head: store.headLaneColor))
                     }
                 }
             }

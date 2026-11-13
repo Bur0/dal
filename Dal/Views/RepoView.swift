@@ -283,8 +283,13 @@ struct RepoToolbar: View {
                     Divider()
                     Button("New Branch…") { store.promptCreateBranch() }
                 } label: {
-                    Text(store.headBranch ?? (store.headSha.map { "detached @ \(String($0.prefix(7)))" } ?? "no commits"))
-                        .font(.system(size: 13, weight: .semibold))
+                    HStack(spacing: 5) {
+                        Image(systemName: store.headBranch == nil ? "exclamationmark.triangle.fill" : "arrow.triangle.branch")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(store.headBranch == nil ? Theme.modified : Color.accentColor)
+                        Text(store.headBranch ?? (store.headSha.map { "detached @ \(String($0.prefix(7)))" } ?? "no commits"))
+                            .font(.system(size: 13, weight: .semibold))
+                    }
                 }
                 .menuStyle(.borderlessButton)
                 .fixedSize()

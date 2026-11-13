@@ -7,6 +7,10 @@ struct BranchNode: Identifiable, Hashable {
     var ref: Ref?
     var children: [BranchNode]?
 
+    var containsHead: Bool {
+        (ref?.isHead ?? false) || (children ?? []).contains(where: \.containsHead)
+    }
+
     static func tree(_ refs: [Ref], nameOf: (Ref) -> String) -> [BranchNode] {
         final class Folder {
             var folders: [String: Folder] = [:]
@@ -73,6 +77,11 @@ struct SidebarView: View {
             List {
                 Section(isExpanded: forced($localOpen)) {
                     let locals = store.localBranches.filter { matches($0.name) }
+                    // A checked-out branch inside a folder (feature/x) would hide in a collapsed
+                    // folder; keep it on top so "where am I" never needs a click.
+                    if let head = store.headRef, head.name.contains("/"), filter.isEmpty {
+                        BranchRow(store: store, node: BranchNode(id: "current:" + head.fullName, name: head.name, ref: head))
+                    }
                     OutlineGroup(BranchNode.tree(locals, nameOf: \.name), children: \.children) { node in
                         BranchRow(store: store, node: node)
                     }
@@ -299,9 +308,15 @@ private struct BranchRow: View {
                 }
             }
         } else {
-            Label(node.name, systemImage: "folder")
-                .font(.system(size: 12))
-                .foregroundStyle(Theme.secondaryText)
+            HStack(spacing: 6) {
+                Label(node.name, systemImage: "folder")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.secondaryText)
+                if node.containsHead {
+                    Circle().fill(Color.accentColor).frame(width: 6, height: 6)
+                        .help("The checked-out branch is in this folder")
+                }
+            }
         }
     }
 }

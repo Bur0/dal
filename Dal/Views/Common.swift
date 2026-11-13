@@ -35,6 +35,17 @@ enum Theme {
 
     static func lane(_ index: Int) -> Color { lanes[((index % lanes.count) + lanes.count) % lanes.count] }
 
+    /// Colour in the graph: the checked-out branch's lane is the accent colour, every other lane
+    /// keeps its hue but steps back, so the current branch is the one thing that stands out.
+    static func lane(_ index: Int, head: Int?) -> Color {
+        guard let head else { return lane(index) }
+        return index == head ? Color.accentColor : lane(index).opacity(0.4)
+    }
+
+    /// Branch labels other than the checked-out one are neutral; a small dot carries the lane.
+    static let badgeFill = dynamic(light: Color.black.opacity(0.05), dark: Color.white.opacity(0.08))
+    static let badgeStroke = dynamic(light: Color.black.opacity(0.13), dark: Color.white.opacity(0.14))
+
     // Status colours (GitHub Primer values), legible as text on both themes.
     static let added = dynamic(light: Color(hex: 0x1A7F37), dark: Color(hex: 0x3FB950))
     static let deleted = dynamic(light: Color(hex: 0xCF222E), dark: Color(hex: 0xF85149))
@@ -248,6 +259,7 @@ struct RefBadgeView: View {
     var untruncated = false
 
     var body: some View {
+        let head = badge.isHead
         HStack(spacing: 5) {
             if badge.name.hasPrefix("-") {
                 // Git refuses to create these; they only arrive from a remote, usually to trick tools.
@@ -255,29 +267,40 @@ struct RefBadgeView: View {
                     .foregroundStyle(Theme.modified)
                     .help("This name starts with a dash, which is unusual and can be used to trick git tools. Dal handles it safely.")
             }
-            if badge.isHead {
+            if head {
                 Image(systemName: "checkmark.circle.fill").font(.system(size: 12))
-                    .symbolRenderingMode(.palette)
-                    .foregroundStyle(.white, color)
-            } else if badge.tag != nil {
-                Image(systemName: "tag").font(.system(size: 11, weight: .medium))
+            } else if badge.tag != nil && badge.local == nil && badge.remotes.isEmpty {
+                Image(systemName: "tag").font(.system(size: 10.5, weight: .medium)).foregroundStyle(.secondary)
+            } else {
+                Circle().fill(color).frame(width: 7, height: 7)
             }
-            Text(badge.name)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .fixedSize(horizontal: untruncated, vertical: false)
-            if !compact {
-                trailing
+            if compact || untruncated {
+                name
+                if !compact { trailing }
+            } else {
+                // The name matters more than the location icons: drop the icons before truncating it.
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 5) { name.fixedSize(); trailing }
+                    name.fixedSize()
+                    name
+                }
             }
         }
-        .font(.system(size: 12, weight: badge.isHead ? .semibold : .medium))
-        .foregroundStyle(.primary)
-        .padding(.leading, badge.isHead ? 4 : 8)
+        .font(.system(size: 12, weight: head ? .semibold : .medium))
+        .foregroundStyle(head ? AnyShapeStyle(Color.white) : AnyShapeStyle(.primary))
+        .padding(.leading, head ? 5 : 8)
         .padding(.trailing, 8)
         .frame(height: 23)
-        .background(RoundedRectangle(cornerRadius: 6).fill(color.opacity(badge.isHead ? 0.38 : 0.22)))
-        .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(color.opacity(0.75), lineWidth: 1))
+        .background(RoundedRectangle(cornerRadius: 6).fill(head ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(Theme.badgeFill)))
+        .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(head ? Color.clear : Theme.badgeStroke, lineWidth: 1))
         .help(helpText)
+    }
+
+    private var name: some View {
+        Text(badge.name)
+            .lineLimit(1)
+            .truncationMode(.middle)
+            .fixedSize(horizontal: untruncated, vertical: false)
     }
 
     /// Where the branch lives (this Mac / a remote) and how far it is from its upstream.
@@ -296,7 +319,7 @@ struct RefBadgeView: View {
                 }
             }
             .font(.system(size: 11, weight: .medium).monospacedDigit())
-            .foregroundStyle(.secondary)
+            .foregroundStyle(badge.isHead ? AnyShapeStyle(Color.white.opacity(0.85)) : AnyShapeStyle(.secondary))
             .padding(.leading, 2)
         }
     }
