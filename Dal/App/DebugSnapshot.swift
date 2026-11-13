@@ -150,10 +150,41 @@ enum DebugSnapshot {
                 if bits.count == 2, let window = NSApp.windows.first(where: { $0.isVisible && $0.title.contains(bits[0]) }) {
                     capture(window, to: bits[1])
                 }
+            case "click", "dclick":
+                // click:x,y / dclick:x,y — window points from the top left, sent as real mouse events.
+                let p = arg.split(separator: ",").compactMap { Double($0) }
+                // Optional: the pause between clicks in ms (default 40) and a hand jitter in points
+                // (the pointer moves that far while the button is down, like a real trackpad click).
+                if p.count >= 2 { await click(at: CGPoint(x: p[0], y: p[1]), times: parts[0] == "dclick" ? 2 : 1,
+                                              gap: p.count > 2 ? Int(p[2]) : 40, jitter: p.count > 3 ? p[3] : 0) }
             case "quit":
                 NSApp.terminate(nil)
             default:
                 break
+            }
+        }
+    }
+
+    /// Mouse down/up pairs with rising click counts, dispatched through the window like a real click.
+    private static func click(at point: CGPoint, times: Int, gap: Int, jitter: Double) async {
+        guard let window = NSApp.windows.first(where: { $0.isVisible && $0.contentView != nil && $0.sheetParent == nil }),
+              let content = window.contentView else { return }
+        let location = NSPoint(x: point.x, y: content.bounds.height - point.y)
+        // A background window treats the first click as "activate"; SwiftUI then ignores it.
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+        try? await Task.sleep(for: .milliseconds(500))
+        for count in 1...times {
+            let types: [NSEvent.EventType] = jitter > 0 ? [.leftMouseDown, .leftMouseDragged, .leftMouseUp] : [.leftMouseDown, .leftMouseUp]
+            for type in types {
+                let at = type == .leftMouseDown ? location : NSPoint(x: location.x + jitter, y: location.y - jitter)
+                guard let event = NSEvent.mouseEvent(with: type, location: at, modifierFlags: [],
+                                                     timestamp: ProcessInfo.processInfo.systemUptime,
+                                                     windowNumber: window.windowNumber, context: nil,
+                                                     eventNumber: 0, clickCount: count, pressure: type == .leftMouseDown ? 1 : 0)
+                else { continue }
+                NSApp.postEvent(event, atStart: false)
+                try? await Task.sleep(for: .milliseconds(type == .leftMouseUp ? gap : 30))
             }
         }
     }

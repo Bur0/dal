@@ -230,9 +230,9 @@ private struct GraphRowView: View {
         }
         .opacity(dimmed ? 0.35 : 1)
         .contentShape(Rectangle())
-        .onTapGesture {
+        .onClick({
             if let commit = item.commit { store.select(commit: commit.sha) } else { store.selection = .wip; store.fileFocus = nil }
-        }
+        }, double: item.commit.map { commit in { store.checkoutBranch(onCommit: commit.sha) } })
         .onHover { hovering = $0 }
         .pointingHandCursor()
         .accessibilityElement(children: .combine)

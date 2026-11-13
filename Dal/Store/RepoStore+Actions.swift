@@ -73,6 +73,21 @@ extension RepoStore {
         }
     }
 
+    /// Double-clicking a commit row checks out the branch that sits on it (GitKraken / Fork habit):
+    /// a local branch first, else a remote one gets a tracking branch. A commit with no branch
+    /// is left alone — detaching HEAD by accident is worse than a missed double-click.
+    func checkoutBranch(onCommit sha: String) {
+        let refs = badges[sha] ?? []
+        if refs.contains(where: \.isHead) { return }
+        if let local = refs.compactMap(\.local).first {
+            checkout(local.name)
+        } else if let remote = refs.flatMap(\.remotes).first {
+            checkout(remote: remote)
+        } else {
+            showToast("No branch on this commit — right-click it to check out the commit itself")
+        }
+    }
+
     func checkout(remote ref: Ref) {
         let local = ref.branchName
         if localBranches.contains(where: { $0.name == local }) {
