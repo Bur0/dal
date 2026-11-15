@@ -124,7 +124,7 @@ Gerekenler: macOS 14+, Git (ilk `git` komutunda Command Line Tools kurulumunu ka
 
 ```bash
 brew install xcodegen
-git clone https://github.com/Bur0/dal.git && cd dal   # private repo
+git clone https://github.com/Bur0/dal.git && cd dal
 scripts/bootstrap.sh          # generates Dal.xcodeproj and opens Xcode
 ```
 
@@ -145,6 +145,12 @@ scripts/    bootstrap, release, icon generator
 Dal shells out to `git` and `gh` rather than embedding libgit2, so it behaves exactly like your
 command line (hooks, credential helpers, signing, LFS).
 
+## Contributing
+
+Issues and pull requests are welcome. Keep changes small and focused, run the tests before opening a
+pull request, and match the existing style (native SwiftUI, `git` CLI underneath, no new dependencies
+without a good reason).
+
 ## Releasing (maintainers)
 
 ```bash
@@ -152,8 +158,7 @@ scripts/release.sh 0.2.0 "- What changed"
 ```
 
 The script bumps the version in `project.yml`, builds a Release app and signs the zip with the Sparkle
-EdDSA key from the login keychain. The source repo is private, so the download and the update feed
-are published to the public [Bur0/dal-releases](https://github.com/Bur0/dal-releases) repo (a GitHub
+EdDSA key from the login keychain. The download and the update feed are published to the [Bur0/dal-releases](https://github.com/Bur0/dal-releases) repo (a GitHub
 release with the zip, plus `appcast.xml`, which installed copies poll). It expects a checkout of that
 repo next to this one (`../dal-releases`, cloned automatically) or at `$DAL_RELEASES_DIR`.
 Generate the key pair once with Sparkle's `generate_keys` and put the public key in `project.yml`
