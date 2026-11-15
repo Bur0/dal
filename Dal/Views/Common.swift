@@ -2,6 +2,37 @@ import SwiftUI
 import AppKit
 import CryptoKit
 
+// MARK: Appearance
+
+/// Light / dark choice from Settings. Every colour in `Theme` is a dynamic NSColor, so setting the
+/// app's appearance is enough — windows, sheets and the Settings window all follow at once.
+enum AppTheme: String, CaseIterable, Identifiable {
+    case system, light, dark
+    static let key = "theme"
+
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .system: "System"
+        case .light: "Light"
+        case .dark: "Dark"
+        }
+    }
+    var appearance: NSAppearance? {
+        switch self {
+        case .system: nil
+        case .light: NSAppearance(named: .aqua)
+        case .dark: NSAppearance(named: .darkAqua)
+        }
+    }
+
+    static var current: AppTheme { AppTheme(rawValue: UserDefaults.standard.string(forKey: key) ?? "") ?? .system }
+
+    @MainActor static func apply(_ theme: AppTheme = current) {
+        NSApplication.shared.appearance = theme.appearance
+    }
+}
+
 // MARK: Theme
 
 enum Theme {

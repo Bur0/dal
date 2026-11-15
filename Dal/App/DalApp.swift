@@ -17,6 +17,7 @@ struct DalApp: App {
         // events (those suppress the main window at launch).
         UserDefaults.standard.register(defaults: ["NSTreatUnknownArgumentsAsOpen": "NO"])
         AppState.shared.openCommandLineFolders()
+        AppTheme.apply()
         #if DEBUG
         DebugSnapshot.startIfRequested()
         #endif

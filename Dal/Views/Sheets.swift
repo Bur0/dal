@@ -309,9 +309,17 @@ private struct GeneralSettings: View {
     @AppStorage("useGravatar") private var useGravatar = true
     @AppStorage("commitLimit") private var commitLimit = 2000
     @AppStorage("pullMode") private var pullMode = PullMode.ffIfPossible.rawValue
+    @AppStorage(AppTheme.key) private var theme = AppTheme.system.rawValue
 
     var body: some View {
         Form {
+            Section("Appearance") {
+                Picker("Theme", selection: $theme) {
+                    ForEach(AppTheme.allCases) { Text($0.title).tag($0.rawValue) }
+                }
+                .pickerStyle(.segmented)
+                .onChange(of: theme) { _, value in AppTheme.apply(AppTheme(rawValue: value) ?? .system) }
+            }
             Section("Graph") {
                 Toggle("Show avatars from Gravatar / GitHub", isOn: $useGravatar)
                 Text("Sends a hash of each author's email to gravatar.com. Turn off to use initials only.")
