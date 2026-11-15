@@ -321,16 +321,20 @@ private struct TabItem: View {
 
     var body: some View {
         HStack(spacing: 7) {
-            Image(systemName: selected ? "folder.fill" : "folder")
-                .font(.system(size: 12))
-                .foregroundStyle(selected ? Color.accentColor : Theme.secondaryText)
+            Group {
+                if store.busy != nil {
+                    ProgressView().controlSize(.mini)
+                } else {
+                    Image(systemName: selected ? "folder.fill" : "folder")
+                        .font(.system(size: 12))
+                        .foregroundStyle(selected ? Color.accentColor : Theme.secondaryText)
+                }
+            }
+            .frame(width: 16, height: 14)
             Text(store.name)
                 .font(.system(size: 13, weight: selected ? .semibold : .regular))
                 .foregroundStyle(selected ? Color.primary : Theme.secondaryText)
                 .lineLimit(1)
-            if store.busy != nil {
-                ProgressView().controlSize(.mini)
-            }
             Button {
                 app.close(store)
             } label: {

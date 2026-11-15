@@ -380,26 +380,31 @@ struct ToolbarButton: View {
     var help: String? = nil
     var badge: Int = 0
     var compact = false
+    /// While this button's command runs, a spinner takes the icon's place (same size, so nothing
+    /// around it moves) and a click cancels instead.
+    var loading = false
+    var onCancel: (() -> Void)? = nil
     let action: () -> Void
 
     @Environment(\.isEnabled) private var isEnabled
     @State private var hovering = false
 
     var body: some View {
-        Button(action: action) {
+        Button {
+            if loading { onCancel?() } else { action() }
+        } label: {
             VStack(spacing: 3) {
-                Image(systemName: symbol)
-                    .font(.system(size: 15, weight: .regular))
-                    .frame(height: 18)
+                icon
+                    .frame(width: 22, height: 18)
                     .overlay(alignment: .topTrailing) {
-                        if badge > 0 {
+                        if badge > 0 && !loading {
                             Text("\(badge)")
                                 .font(.system(size: 9, weight: .bold))
                                 .foregroundStyle(.white)
                                 .padding(.horizontal, 4)
                                 .frame(minWidth: 14, minHeight: 14)
                                 .background(Capsule().fill(Color.accentColor))
-                                .offset(x: 10, y: -6)
+                                .offset(x: 8, y: -6)
                         }
                     }
                 if !compact { Text(title).font(.system(size: 11)) }
@@ -413,8 +418,20 @@ struct ToolbarButton: View {
         .buttonStyle(.plain)
         .foregroundStyle(isEnabled ? .primary : .tertiary)
         .onHover { hovering = $0 }
-        .help(help ?? title)
-        .accessibilityLabel(title)
+        .help(loading ? "Cancel \(title.lowercased())" : help ?? title)
+        .accessibilityLabel(loading ? "Cancel \(title.lowercased())" : title)
+    }
+
+    @ViewBuilder private var icon: some View {
+        if loading {
+            if hovering && onCancel != nil {
+                Image(systemName: "xmark.circle.fill").font(.system(size: 15))
+            } else {
+                ProgressView().controlSize(.small)
+            }
+        } else {
+            Image(systemName: symbol).font(.system(size: 15, weight: .regular))
+        }
     }
 }
 

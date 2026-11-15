@@ -157,6 +157,9 @@ enum DebugSnapshot {
                 // (the pointer moves that far while the button is down, like a real trackpad click).
                 if p.count >= 2 { await click(at: CGPoint(x: p[0], y: p[1]), times: parts[0] == "dclick" ? 2 : 1,
                                               gap: p.count > 2 ? Int(p[2]) : 40, jitter: p.count > 3 ? p[3] : 0) }
+            case "busy":
+                // busy:Pull shows a running command without running one; busy: clears it.
+                store?.busy = arg.isEmpty ? nil : arg
             case "quit":
                 NSApp.terminate(nil)
             default:

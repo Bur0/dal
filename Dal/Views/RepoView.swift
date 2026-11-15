@@ -152,8 +152,19 @@ struct RepoToolbar: View {
         .frame(height: 52)
         .frame(maxWidth: .infinity)
         .background(Theme.chrome)
-        .animation(.easeOut(duration: 0.15), value: store.busy)
     }
+
+    /// Which toolbar button's command is running ("Push tag" shows on Push); nil for anything else.
+    private var running: String? {
+        guard let busy = store.busy else { return nil }
+        return ["Pull", "Push", "Fetch"].first { busy == $0 || busy.hasPrefix($0 + " ") }
+    }
+
+    /// Everything is off while a command runs, except the running button itself (it cancels).
+    private func isBlocked(_ title: String) -> Bool { store.busy != nil && running != title }
+
+    /// A command without its own toolbar button (checkout, merge, stash…): shown on the branch label.
+    private var otherBusy: String? { running == nil ? store.busy : nil }
 
     private func bar(compact: Bool) -> some View {
         HStack(spacing: compact ? 2 : 6) {
@@ -171,7 +182,9 @@ struct RepoToolbar: View {
 
             HStack(spacing: 0) {
                 ToolbarButton(title: "Pull", symbol: "arrow.down.to.line",
-                              help: "Pull (⌥⌘L)", badge: store.headRef?.behind ?? 0, compact: compact) { store.pull() }
+                              help: "Pull (⌥⌘L)", badge: store.headRef?.behind ?? 0, compact: compact,
+                              loading: running == "Pull", onCancel: store.cancelRunning) { store.pull() }
+                    .disabled(isBlocked("Pull"))
                 Menu {
                     Button("Fetch All") { store.fetch() }
                     Divider()
@@ -191,20 +204,22 @@ struct RepoToolbar: View {
                 .menuIndicator(.hidden)
                 .frame(width: 16)
                 .accessibilityLabel("Pull options")
+                .disabled(store.busy != nil)
             }
-            .disabled(store.busy != nil)
 
             ToolbarButton(title: "Push", symbol: "arrow.up.to.line", help: "Push (⌥⌘P)",
-                          badge: store.headRef?.ahead ?? 0, compact: compact) { store.push() }
-                .disabled(store.busy != nil)
+                          badge: store.headRef?.ahead ?? 0, compact: compact,
+                          loading: running == "Push", onCancel: store.cancelRunning) { store.push() }
+                .disabled(isBlocked("Push"))
             ToolbarButton(title: "Fetch", symbol: "arrow.triangle.2.circlepath", help: "Fetch all remotes (⌥⌘F)",
-                          compact: compact) { store.fetch() }
-                .disabled(store.busy != nil)
+                          compact: compact, loading: running == "Fetch", onCancel: store.cancelRunning) { store.fetch() }
+                .disabled(isBlocked("Fetch"))
 
             divider
 
             ToolbarButton(title: "Branch", symbol: "arrow.triangle.branch", help: "Create branch (⌥⌘B)",
                           compact: compact) { store.promptCreateBranch() }
+                .disabled(store.busy != nil)
             ToolbarButton(title: "Stash", symbol: "tray.and.arrow.down", help: "Stash all changes (⌥⌘S)",
                           compact: compact) { store.stash() }
                 .disabled(store.status.isEmpty || store.busy != nil)
@@ -222,24 +237,6 @@ struct RepoToolbar: View {
 
             Spacer(minLength: 12)
 
-            if let busy = store.busy {
-                HStack(spacing: 6) {
-                    ProgressView().controlSize(.small)
-                    if !compact {
-                        Text(busy + "…").font(.system(size: 11)).foregroundStyle(Theme.secondaryText).lineLimit(1)
-                    }
-                    Button {
-                        store.cancelRunning()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill").font(.system(size: 12))
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(Theme.secondaryText)
-                    .help("Cancel \(busy.lowercased())")
-                    .accessibilityLabel("Cancel \(busy)")
-                }
-                .transition(.opacity)
-            }
             searchField(compact: compact)
         }
     }
@@ -272,27 +269,49 @@ struct RepoToolbar: View {
                 .padding(.top, 10)
             VStack(alignment: .leading, spacing: 1) {
                 Text("branch").font(.system(size: 11)).foregroundStyle(Theme.mutedText).fixedSize()
-                Menu {
-                    ForEach(store.localBranches) { ref in
-                        Button {
-                            if !ref.isHead { store.checkout(ref.name) }
-                        } label: {
-                            if ref.isHead { Label(ref.name, systemImage: "checkmark") } else { Text(ref.name) }
+                    .opacity(otherBusy == nil ? 1 : 0)
+                    .overlay(alignment: .leading) {
+                        // An overlay, so a long title can't widen the bar and reflow the buttons.
+                        if let otherBusy {
+                            Text(otherBusy.lowercased() + "…").font(.system(size: 11)).foregroundStyle(Theme.secondaryText)
+                                .fixedSize()
                         }
                     }
-                    Divider()
-                    Button("New Branch…") { store.promptCreateBranch() }
-                } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: store.headBranch == nil ? "exclamationmark.triangle.fill" : "arrow.triangle.branch")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(store.headBranch == nil ? Theme.modified : Color.accentColor)
+                HStack(spacing: 4) {
+                    // Outside the menu: a Menu label is drawn as a static image, which drops both
+                    // the colour and a spinner. Spinner and icon share one fixed slot, so nothing moves.
+                    Group {
+                        if otherBusy != nil {
+                            ProgressView().controlSize(.mini)
+                        } else {
+                            Image(systemName: store.headBranch == nil ? "exclamationmark.triangle.fill" : "arrow.triangle.branch")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(store.headBranch == nil ? Theme.modified : Color.accentColor)
+                        }
+                    }
+                    .frame(width: 13, height: 13)
+                    .help(otherBusy.map { "\($0)…" } ?? "")
+                    Menu {
+                        if let otherBusy {
+                            Button("Cancel \(otherBusy.lowercased())") { store.cancelRunning() }
+                            Divider()
+                        }
+                        ForEach(store.localBranches) { ref in
+                            Button {
+                                if !ref.isHead { store.checkout(ref.name) }
+                            } label: {
+                                if ref.isHead { Label(ref.name, systemImage: "checkmark") } else { Text(ref.name) }
+                            }
+                        }
+                        Divider()
+                        Button("New Branch…") { store.promptCreateBranch() }
+                    } label: {
                         Text(store.headBranch ?? (store.headSha.map { "detached @ \(String($0.prefix(7)))" } ?? "no commits"))
                             .font(.system(size: 13, weight: .semibold))
                     }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
                 }
-                .menuStyle(.borderlessButton)
-                .fixedSize()
             }
         }
     }
