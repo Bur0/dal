@@ -135,8 +135,35 @@ struct Worktree: Identifiable, Hashable {
     var branch: String?
     var isBare = false
     var isMain = false
+    var isDetached = false
+    /// `git worktree lock`: protected from remove / move / prune. The reason may be empty.
+    var lockReason: String?
+    /// Its folder is gone (or no longer a worktree); `git worktree prune` would drop it.
+    var prunableReason: String?
     var id: String { path }
     var name: String { (path as NSString).lastPathComponent }
+    var isLocked: Bool { lockReason != nil }
+    var isPrunable: Bool { prunableReason != nil }
+
+    /// The coding agent that made this worktree, recognised by where agents put theirs
+    /// (Claude Code: `<repo>/.claude/worktrees/`, Codex: `~/.codex/worktrees/`, …) or by
+    /// the branch prefix they use.
+    var agent: String? { Self.agent(path: path, branch: branch) }
+
+    static func agent(path: String, branch: String?) -> String? {
+        let markers: [(String, String)] = [
+            ("/.claude/worktrees/", "Claude Code"),
+            ("/.codex/worktrees/", "Codex"),
+            ("/.cursor/worktrees/", "Cursor"),
+            ("/conductor/workspaces/", "Conductor"),
+            ("/.gemini/worktrees/", "Gemini"),
+            ("/.windsurf/worktrees/", "Windsurf"),
+        ]
+        if let match = markers.first(where: { path.contains($0.0) }) { return match.1 }
+        let prefixes: [(String, String)] = [("claude/", "Claude Code"), ("codex/", "Codex"), ("cursor/", "Cursor")]
+        if let branch, let match = prefixes.first(where: { branch.hasPrefix($0.0) }) { return match.1 }
+        return nil
+    }
 }
 
 struct GHUser: Decodable, Hashable {

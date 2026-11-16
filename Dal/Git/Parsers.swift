@@ -179,6 +179,12 @@ enum Parse {
                 current?.branch = String(line.dropFirst(7)).replacingOccurrences(of: "refs/heads/", with: "")
             } else if line == "bare" {
                 current?.isBare = true
+            } else if line == "detached" {
+                current?.isDetached = true
+            } else if line == "locked" || line.hasPrefix("locked ") {
+                current?.lockReason = line == "locked" ? "" : String(line.dropFirst("locked ".count))
+            } else if line == "prunable" || line.hasPrefix("prunable ") {
+                current?.prunableReason = line == "prunable" ? "" : String(line.dropFirst("prunable ".count))
             }
         }
         if let c = current { result.append(c) }

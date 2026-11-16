@@ -613,6 +613,10 @@ private struct RefMenu: View {
     private var branch: String { store.headBranch ?? "HEAD" }
 
     var body: some View {
+        if let local, let tree = store.worktree(holding: local.name) {
+            Button("Open Worktree “\(tree.name)”") { store.openWorktree(tree) }
+            Divider()
+        }
         syncSection
         checkoutSection
         commitSection
@@ -677,7 +681,10 @@ private struct RefMenu: View {
         }
         if let commit {
             Menu("Create Worktree From") {
-                ForEach(locals.filter { !$0.isHead }) { ref in
+                Button("New Branch Here…") { store.promptNewWorktree(from: commit.sha) }
+                Divider()
+                // A branch another worktree already has can't be checked out a second time.
+                ForEach(locals.filter { !$0.isHead && store.worktree(holding: $0.name) == nil }) { ref in
                     Button(ref.name) { store.createWorktree(ref: ref, sha: commit.sha) }
                 }
                 ForEach(remoteRefs) { ref in

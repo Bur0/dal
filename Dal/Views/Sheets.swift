@@ -7,7 +7,7 @@ struct InputSheet: View {
     @FocusState private var focused: Bool
 
     private var problem: String? { request.validate?(text) }
-    private var canSubmit: Bool { !text.trimmed.isEmpty && problem == nil }
+    private var canSubmit: Bool { (request.allowEmpty || !text.trimmed.isEmpty) && problem == nil }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {

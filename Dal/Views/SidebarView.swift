@@ -135,18 +135,41 @@ struct SidebarView: View {
                 }
 
                 Section(isExpanded: forced($worktreesOpen)) {
-                    ForEach(store.worktrees) { tree in
-                        SidebarItem(symbol: tree.isMain ? "folder.fill" : "folder", title: tree.name,
-                                    detail: tree.branch, selected: tree.path == store.url.path,
-                                    double: { AppState.shared.open(URL(fileURLWithPath: tree.path)) }) {}
-                            .help(tree.path + "\nDouble-click to open in a new tab")
-                            .contextMenu {
-                                Button("Open in New Tab") { AppState.shared.open(URL(fileURLWithPath: tree.path)) }
-                                Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: tree.path)]) }
-                            }
+                    let trees = store.worktrees.filter { matches($0.name) || matches($0.branch ?? "") || matches($0.agent ?? "") }
+                    ForEach(trees.filter { $0.agent == nil }) { tree in
+                        WorktreeRow(store: store, tree: tree)
+                    }
+                    let agentTrees = trees.filter { $0.agent != nil }
+                    if !agentTrees.isEmpty {
+                        // Worktrees made by coding agents (Claude Code, Codex, Cursor…), kept apart
+                        // so a dozen agent runs don't bury your own.
+                        Text("Agents").font(.system(size: 11, weight: .medium)).foregroundStyle(Theme.mutedText)
+                            .padding(.leading, 20).padding(.top, 4)
+                        ForEach(agentTrees) { tree in
+                            WorktreeRow(store: store, tree: tree)
+                        }
                     }
                 } header: {
-                    header("Worktrees", count: store.worktrees.count, symbol: "square.stack.3d.up")
+                    HStack {
+                        header("Worktrees", count: store.worktrees.count, symbol: "square.stack.3d.up")
+                        Spacer()
+                        Button { store.promptNewWorktree() } label: { Image(systemName: "plus") }
+                            .buttonStyle(.plain)
+                            .help("New worktree on a new branch")
+                            .accessibilityLabel("New worktree")
+                            .disabled(store.headSha == nil)
+                        Menu {
+                            Button("New Worktree…") { store.promptNewWorktree() }
+                            Divider()
+                            Button("Prune Stale Worktrees") { store.pruneWorktrees() }
+                            Button("Repair Worktree Links") { store.repairWorktrees() }
+                        } label: { Image(systemName: "ellipsis") }
+                            .menuStyle(.borderlessButton)
+                            .menuIndicator(.hidden)
+                            .fixedSize()
+                            .help("Worktree actions")
+                            .accessibilityLabel("Worktree actions")
+                    }
                 }
 
                 Section(isExpanded: forced($prsOpen)) {
@@ -265,6 +288,7 @@ private struct SidebarItem: View {
                 .font(.system(size: 12, weight: bold ? .semibold : .regular))
                 .lineLimit(1)
                 .truncationMode(.middle)
+                .layoutPriority(1)
             Spacer(minLength: 2)
             if let trailing { trailing }
             if let detail {
@@ -286,19 +310,28 @@ private struct BranchRow: View {
 
     var body: some View {
         if let ref = node.ref {
+            let tree = ref.kind == .localBranch ? store.worktree(holding: ref.name) : nil
             SidebarItem(symbol: ref.isHead ? "checkmark.circle.fill" : ref.kind == .remoteBranch ? "cloud" : "arrow.triangle.branch",
                         title: node.name,
-                        trailing: AnyView(TrackingPill(ref: ref)),
+                        trailing: AnyView(HStack(spacing: 4) {
+                            if let tree {
+                                Image(systemName: "folder").font(.system(size: 10)).foregroundStyle(Theme.mutedText)
+                                    .help("Checked out in worktree “\(tree.name)”")
+                            }
+                            TrackingPill(ref: ref)
+                        }),
                         selected: ref.isHead, bold: ref.isHead,
                         highlighted: store.selection == .commit(ref.target),
                         double: {
                             if ref.kind == .remoteBranch { store.checkout(remote: ref) }
+                            else if let tree { store.openWorktree(tree) }
                             else if !ref.isHead { store.checkout(ref.name) }
                         }) {
                 store.select(commit: ref.target, scroll: true)
             }
             .help(ref.kind == .remoteBranch ? "\(ref.name)\nDouble-click to check out" :
-                    "\(ref.name)\(ref.upstream.map { " → \($0)" } ?? "")\nDouble-click to check out")
+                    "\(ref.name)\(ref.upstream.map { " → \($0)" } ?? "")\n"
+                    + (tree.map { "Checked out in worktree “\($0.name)” — double-click to open it" } ?? "Double-click to check out"))
             .draggable(ref.name)
             .contextMenu {
                 if ref.kind == .remoteBranch {
@@ -316,6 +349,101 @@ private struct BranchRow: View {
                     Circle().fill(Color.accentColor).frame(width: 6, height: 6)
                         .help("The checked-out branch is in this folder")
                 }
+            }
+        }
+    }
+}
+
+/// One worktree: folder, branch, uncommitted count, ahead/behind, lock and missing-folder state.
+private struct WorktreeRow: View {
+    let store: RepoStore
+    let tree: Worktree
+
+    private var changes: Int { store.worktreeChanges[tree.path] ?? 0 }
+    private var branchRef: Ref? { tree.branch.flatMap { name in store.localBranches.first { $0.name == name } } }
+
+    private var symbol: String {
+        if tree.isPrunable { return "exclamationmark.triangle" }
+        if tree.isLocked { return "lock" }
+        if tree.isMain { return "folder.fill" }
+        return "folder"
+    }
+
+    /// "app-feature-x" next to a repository called "app" reads as "feature-x".
+    private var displayName: String {
+        guard !tree.isMain, let main = store.worktrees.first(where: \.isMain)?.name else { return tree.name }
+        for separator in ["-", "_", "."] where tree.name.hasPrefix(main + separator) && tree.name.count > main.count + 1 {
+            return String(tree.name.dropFirst(main.count + 1))
+        }
+        return tree.name
+    }
+
+    private var detail: String {
+        if tree.isBare { return "bare" }
+        if tree.isPrunable { return "missing" }
+        return tree.branch ?? "detached @ \(String(tree.head.prefix(7)))"
+    }
+
+    private var helpText: String {
+        var lines = [tree.path]
+        if let agent = tree.agent { lines.append("Made by \(agent)") }
+        if let reason = tree.lockReason { lines.append(reason.isEmpty ? "Locked" : "Locked: \(reason)") }
+        if let reason = tree.prunableReason { lines.append("Folder is gone\(reason.isEmpty ? "" : " (\(reason))") — prune to clean up") }
+        if changes > 0 { lines.append("\(changes) uncommitted \(changes == 1 ? "change" : "changes")") }
+        if !store.isCurrent(tree) && !tree.isPrunable { lines.append("Double-click to open in a new tab") }
+        return lines.joined(separator: "\n")
+    }
+
+    var body: some View {
+        SidebarItem(symbol: symbol, title: displayName, detail: detail,
+                    trailing: AnyView(trailing), selected: store.isCurrent(tree),
+                    double: tree.isPrunable ? nil : { store.openWorktree(tree) }) {}
+            .foregroundStyle(tree.isPrunable ? Theme.mutedText : Color.primary)
+            .help(helpText)
+            .contextMenu { menu }
+    }
+
+    private var trailing: some View {
+        HStack(spacing: 4) {
+            if changes > 0 {
+                HStack(spacing: 2) {
+                    Circle().fill(Theme.modified).frame(width: 5, height: 5)
+                    Text("\(changes)")
+                }
+                .font(.system(size: 11, weight: .semibold))
+                .monospacedDigit()
+                .foregroundStyle(Theme.secondaryText)
+            }
+            if let branchRef { TrackingPill(ref: branchRef) }
+        }
+    }
+
+    @ViewBuilder private var menu: some View {
+        if !tree.isPrunable {
+            Button(store.isCurrent(tree) ? "Open (This Tab)" : "Open in New Tab") { store.openWorktree(tree) }
+                .disabled(store.isCurrent(tree))
+            Button("Open in Terminal") { store.openTerminal(at: tree.path) }
+            Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: tree.path)]) }
+        }
+        Button("Copy Path") { store.copy(tree.path, label: "Copied path") }
+        if let branch = tree.branch {
+            Button("Show \(branch) in Graph") {
+                if let ref = branchRef { store.select(commit: ref.target, scroll: true) }
+            }
+            .disabled(branchRef == nil)
+        }
+        if !tree.isMain {
+            Divider()
+            if tree.isLocked {
+                Button("Unlock") { store.unlockWorktree(tree) }
+            } else if !tree.isPrunable {
+                Button("Lock…") { store.promptLockWorktree(tree) }
+                Button("Move…") { store.moveWorktree(tree) }
+            }
+            if tree.isPrunable {
+                Button("Prune") { store.pruneWorktrees() }
+            } else {
+                Button("Remove Worktree…", role: .destructive) { store.removeWorktree(tree) }
             }
         }
     }

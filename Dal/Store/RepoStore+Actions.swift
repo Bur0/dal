@@ -66,6 +66,13 @@ extension RepoStore {
     // MARK: Checkout & branches
 
     func checkout(_ target: String) {
+        // Git refuses a branch that another worktree has checked out; offer to open that one.
+        if let other = worktree(holding: target) {
+            alert = AppAlert(title: "\(target) is checked out in another worktree",
+                             message: "It's open in “\(other.name)” (\(other.path)). A branch can only be checked out in one worktree at a time.",
+                             confirmLabel: "Open Worktree") { AppState.shared.open(URL(fileURLWithPath: other.path)) }
+            return
+        }
         let before = currentPosition
         run("Checkout", success: "Checked out \(target)") { [self] in
             try await git.run(["checkout", "--end-of-options", target, "--"])
@@ -770,10 +777,10 @@ extension RepoStore {
 
     // MARK: Misc
 
-    func openTerminal() {
+    func openTerminal(at path: String? = nil) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        process.arguments = ["-a", "Terminal", url.path]
+        process.arguments = ["-a", "Terminal", path ?? url.path]
         try? process.run()
     }
 

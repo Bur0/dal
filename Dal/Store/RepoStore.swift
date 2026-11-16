@@ -50,6 +50,8 @@ struct InputRequest: Identifiable {
     var hint: String? = nil
     /// A text area instead of one line (commit and tag messages); ⌘Return submits.
     var multiline = false
+    /// Submitting with an empty field is fine (an optional reason, say).
+    var allowEmpty = false
     var action: (String) -> Void
 }
 
@@ -164,6 +166,9 @@ final class RepoStore: Identifiable {
     var status = WorkingStatus()
     var stashes: [Stash] = []
     var worktrees: [Worktree] = []
+    /// Uncommitted file count per linked worktree path (loaded in the background).
+    var worktreeChanges: [String: Int] = [:]
+    @ObservationIgnored var worktreeStatusLoadedAt: Date?
     var remotes: [String] = []
     var ongoing: OngoingOperation?
     var gitDir: URL?
@@ -367,7 +372,9 @@ final class RepoStore: Identifiable {
                 || newStatus.isEmpty != status.isEmpty || newOngoing != ongoing
             let statusChanged = newStatus != status
             update(\.stashes, newStashes)
+            let worktreesChanged = newWorktrees != worktrees
             update(\.worktrees, newWorktrees)
+            if newWorktrees.count > 1 { Task { await loadWorktreeStatus(force: worktreesChanged) } }
             update(\.remotes, newRemotes)
             update(\.headBranch, newBranch)
             update(\.headSha, newHead)
