@@ -44,8 +44,34 @@ extension RepoStore {
                     selection = .wip
                     return
                 }
-                alert = AppAlert(title: "\(title) failed", message: error.localizedDescription)
+                let message = error.localizedDescription
+                if let lock = Git.lockPath(in: message), FileManager.default.fileExists(atPath: lock) {
+                    staleLockAlert(title: title, lock: lock)
+                    return
+                }
+                alert = AppAlert(title: "\(title) failed", message: message)
             }
+        }
+    }
+
+    /// The lock stayed through every retry: either a git process is still busy (an agent mid-commit)
+    /// or one crashed and left the file behind. Removing it is only offered, never automatic.
+    private func staleLockAlert(title: String, lock: String) {
+        let age = (try? FileManager.default.attributesOfItem(atPath: lock)[.modificationDate] as? Date)
+            .map { Date().timeIntervalSince($0) } ?? 0
+        let ageText = age < 60 ? "a few seconds" : age < 3600 ? "\(Int(age / 60)) min" : "\(Int(age / 3600)) h"
+        alert = AppAlert(
+            title: "\(title) is waiting on another Git process",
+            message: "\((lock as NSString).lastPathComponent) has been held for \(ageText). Another app or a coding agent may still be running Git in this repository — try again in a moment. If nothing else is using it (a crashed process left it behind), remove the lock file.",
+            confirmLabel: "Remove Lock File", destructive: true) { [weak self] in
+            guard let self else { return }
+            do {
+                try FileManager.default.removeItem(atPath: lock)
+                self.showToast("Removed \((lock as NSString).lastPathComponent) — try again")
+            } catch {
+                self.alert = AppAlert(title: "Couldn't remove the lock", message: error.localizedDescription)
+            }
+            Task { await self.refresh(full: true) }
         }
     }
 
@@ -73,11 +99,16 @@ extension RepoStore {
                              confirmLabel: "Open Worktree") { AppState.shared.open(URL(fileURLWithPath: other.path)) }
             return
         }
-        let before = currentPosition
-        run("Checkout", success: "Checked out \(target)") { [self] in
-            try await git.run(["checkout", "--end-of-options", target, "--"])
-            if let before { pushUndo(.checkout(before: before, after: target)) }
+        switchTo(target, args: ["checkout", "--end-of-options", target, "--"], success: "Checked out \(target)")
+    }
+
+    func checkout(remote ref: Ref) {
+        let local = ref.branchName
+        if localBranches.contains(where: { $0.name == local }) {
+            checkout(local)
+            return
         }
+        switchTo(local, args: ["checkout", "-b", local, "--track", ref.name], success: "Created \(local) tracking \(ref.name)")
     }
 
     /// Double-clicking a commit row checks out the branch that sits on it (GitKraken / Fork habit):
@@ -95,16 +126,53 @@ extension RepoStore {
         }
     }
 
-    func checkout(remote ref: Ref) {
-        let local = ref.branchName
-        if localBranches.contains(where: { $0.name == local }) {
-            checkout(local)
-            return
-        }
+    /// Runs a checkout. When uncommitted changes are in the way — typically a coding agent still
+    /// editing this worktree — it offers to stash them and switch instead of only failing.
+    private func switchTo(_ target: String, args: [String], success: String) {
         let before = currentPosition
-        run("Checkout", success: "Created \(local) tracking \(ref.name)") { [self] in
-            try await git.run(["checkout", "-b", local, "--track", ref.name])
-            if let before { pushUndo(.checkout(before: before, after: local)) }
+        run("Checkout") { [self] in
+            do {
+                try await git.run(args)
+            } catch let error as GitError where Self.changesInTheWay(error.message) {
+                offerStashAndSwitch(target, args: args, success: success, files: Self.blockingFiles(error.message))
+                return
+            }
+            if let before { pushUndo(.checkout(before: before, after: target)) }
+            showToast(success)
+        }
+    }
+
+    nonisolated static func changesInTheWay(_ message: String) -> Bool {
+        message.contains("would be overwritten by checkout") || message.contains("would be removed by checkout")
+            || message.contains("untracked working tree files would be overwritten")
+    }
+
+    /// The tab-indented file list git prints under "…would be overwritten by checkout:".
+    nonisolated static func blockingFiles(_ message: String) -> [String] {
+        message.split(separator: "\n").filter { $0.hasPrefix("\t") }.map { String($0).trimmed }
+    }
+
+    private func offerStashAndSwitch(_ target: String, args: [String], success: String, files: [String]) {
+        let from = headBranch ?? headSha.map { String($0.prefix(7)) } ?? "HEAD"
+        let list = files.prefix(5).joined(separator: "\n") + (files.count > 5 ? "\n…and \(files.count - 5) more" : "")
+        alert = AppAlert(
+            title: "Uncommitted changes are in the way",
+            message: "Switching to \(target) would overwrite \(files.count == 1 ? "a changed file" : "\(files.count) changed files") on \(from) — maybe a coding agent is still working here:\n\n\(list)\n\nStash them (new files too) and switch? They wait in Stashes until you pop them.",
+            confirmLabel: "Stash & Switch") { [weak self] in
+            guard let self else { return }
+            let before = self.currentPosition
+            self.run("Stash & switch") { [self] in
+                try await self.git.run(["stash", "push", "--include-untracked", "-m", "Dal: changes on \(from) before switching to \(target)"])
+                do {
+                    try await self.git.run(args)
+                } catch {
+                    // Couldn't switch after all (an agent wrote again in between): put the work back.
+                    _ = try? await self.git.run(["stash", "pop", "--index"])
+                    throw error
+                }
+                if let before { self.pushUndo(.checkout(before: before, after: target)) }
+                self.showToast("\(success) — your changes from \(from) are stashed")
+            }
         }
     }
 

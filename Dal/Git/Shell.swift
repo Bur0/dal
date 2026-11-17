@@ -43,7 +43,10 @@ enum Shell {
     static func run(_ tool: String, _ args: [String], cwd: URL?, input: Data? = nil,
                     env: [String: String] = [:]) async throws -> Result {
         try await withCheckedThrowingContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
+            // Each process waits on its own thread, not on GCD's shared pool: dozens of parallel
+            // git calls (many worktrees, agents busy) would otherwise block every pool thread and
+            // leave the stderr readers below with none — a deadlock that freezes every refresh.
+            detached {
                 let process = Process()
                 process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
                 process.arguments = [tool] + args
@@ -67,27 +70,38 @@ enum Shell {
                 defer { ProcessRegistry.shared.remove(token) }
 
                 if let input {
-                    DispatchQueue.global().async {
+                    detached {
                         inPipe.fileHandleForWriting.write(input)
                         try? inPipe.fileHandleForWriting.close()
                     }
                 }
 
                 let group = DispatchGroup()
-                var errData = Data()
+                let errData = DataBox()
                 group.enter()
-                DispatchQueue.global().async {
-                    errData = err.fileHandleForReading.readDataToEndOfFile()
+                detached {
+                    errData.value = err.fileHandleForReading.readDataToEndOfFile()
                     group.leave()
                 }
                 let outData = out.fileHandleForReading.readDataToEndOfFile()
                 group.wait()
                 process.waitUntilExit()
-                continuation.resume(returning: Result(stdout: outData, stderr: errData,
+                continuation.resume(returning: Result(stdout: outData, stderr: errData.value,
                                                       status: process.terminationStatus))
             }
         }
     }
+}
+
+/// Written by the stderr thread before `group.leave()`, read after `group.wait()`.
+private final class DataBox: @unchecked Sendable { var value = Data() }
+
+/// Runs blocking work on a fresh thread (small stack: these only wait on pipes).
+private func detached(_ work: @escaping @Sendable () -> Void) {
+    let thread = Thread(block: work)
+    thread.stackSize = 256 * 1024
+    thread.qualityOfService = .userInitiated
+    thread.start()
 }
 
 /// Running child processes, so a long operation (a stuck push, a hook) can be cancelled.

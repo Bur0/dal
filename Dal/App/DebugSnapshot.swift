@@ -157,6 +157,24 @@ enum DebugSnapshot {
                 // (the pointer moves that far while the button is down, like a real trackpad click).
                 if p.count >= 2 { await click(at: CGPoint(x: p[0], y: p[1]), times: parts[0] == "dclick" ? 2 : 1,
                                               gap: p.count > 2 ? Int(p[2]) : 40, jitter: p.count > 3 ? p[3] : 0) }
+            case "checkout":
+                store?.checkout(arg)
+            case "dumpstate":
+                // dumpstate:/path — appends one line: HEAD branch, busy, alert, refreshing.
+                if let store {
+                    let line = "head=\(store.headBranch ?? "-") toast=\(store.toast ?? "-") busy=\(store.busy ?? "-") alert=\(store.alert.map { $0.title + ": " + $0.message } ?? "-") refreshing=\(store.debugRefreshing)\n"
+                    if let handle = FileHandle(forWritingAtPath: arg) {
+                        handle.seekToEndOfFile(); handle.write(Data(line.utf8)); try? handle.close()
+                    } else {
+                        try? line.write(toFile: arg, atomically: true, encoding: .utf8)
+                    }
+                }
+            case "dismissalert":
+                store?.alert = nil
+            case "confirmalert":
+                let action = store?.alert?.action
+                store?.alert = nil
+                action?()
             case "busy":
                 // busy:Pull shows a running command without running one; busy: clears it.
                 store?.busy = arg.isEmpty ? nil : arg

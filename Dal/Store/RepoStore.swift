@@ -169,6 +169,7 @@ final class RepoStore: Identifiable {
     /// Uncommitted file count per linked worktree path (loaded in the background).
     var worktreeChanges: [String: Int] = [:]
     @ObservationIgnored var worktreeStatusLoadedAt: Date?
+    @ObservationIgnored private var reportedBrokenRefs: Set<String> = []
     var remotes: [String] = []
     var ongoing: OngoingOperation?
     var gitDir: URL?
@@ -230,6 +231,9 @@ final class RepoStore: Identifiable {
     @ObservationIgnored private var watcher: FileWatcher?
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
     @ObservationIgnored private var refreshing = false
+    #if DEBUG
+    var debugRefreshing: Bool { refreshing }
+    #endif
     @ObservationIgnored private var refreshQueued = false
     @ObservationIgnored private var toastTask: Task<Void, Never>?
     @ObservationIgnored private var searchTask: Task<Void, Never>?
@@ -337,7 +341,7 @@ final class RepoStore: Identifiable {
         }
         do {
             if gitDir == nil { gitDir = try await git.gitDir() }
-            async let refsTask = git.refs()
+            async let refsTask = git.refsTolerant()
             async let statusTask = git.status()
             async let stashTask = git.stashes()
             async let worktreeTask = git.worktrees()
@@ -345,7 +349,8 @@ final class RepoStore: Identifiable {
             async let headTask = git.headSha()
             async let branchTask = git.currentBranch()
 
-            let newRefs = try await refsTask
+            let (newRefs, brokenRefs) = try await refsTask
+            reportBrokenRefs(brokenRefs)
             let newHead = await headTask
             // `git log` is the expensive part; skip it when no ref, HEAD or page size moved.
             let fingerprint = newRefs.map { $0.fullName + $0.target }.joined(separator: ",") + "|\(newHead ?? "")|\(limit)|\(soloRefs?.joined(separator: ",") ?? "")"
@@ -355,7 +360,9 @@ final class RepoStore: Identifiable {
             } else if fingerprint == logFingerprint && !commits.isEmpty {
                 newCommits = commits
             } else {
-                newCommits = try await git.log(limit: limit, includeHead: newHead != nil && soloRefs == nil, only: soloRefs)
+                // With a broken ref, `--branches` would fail: walk the good refs by name instead.
+                let only = soloRefs ?? (brokenRefs.isEmpty ? nil : newRefs.map(\.fullName))
+                newCommits = try await git.log(limit: limit, includeHead: newHead != nil && soloRefs == nil, only: only)
             }
             logFingerprint = fingerprint
 
@@ -400,6 +407,19 @@ final class RepoStore: Identifiable {
             loadingMore = false
             alert = AppAlert(title: "Couldn't read repository", message: error.localizedDescription)
         }
+    }
+
+    /// Says once (per set) that some refs point at missing commits, instead of failing to load.
+    private func reportBrokenRefs(_ broken: [String]) {
+        let names = Set(broken)
+        guard !names.isEmpty, !names.isSubset(of: reportedBrokenRefs) else { return }
+        reportedBrokenRefs.formUnion(names)
+        let short = broken.prefix(3).map { $0.replacingOccurrences(of: "refs/heads/", with: "") }.joined(separator: ", ")
+            + (broken.count > 3 ? " and \(broken.count - 3) more" : "")
+        showToast(broken.count == 1
+                  ? "Hidden a damaged branch (\(short)): its commit is missing. Run git fsck."
+                  : "Hidden \(broken.count) damaged branches (\(short)): their commits are missing. Run git fsck.",
+                  warning: true)
     }
 
     /// Cheap refresh for working-tree edits: status (and the WIP row) only.

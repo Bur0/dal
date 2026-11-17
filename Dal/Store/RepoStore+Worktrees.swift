@@ -42,15 +42,23 @@ extension RepoStore {
         worktreeStatusLoadedAt = Date()
         let trees = worktrees.filter { !$0.isBare && !$0.isPrunable }
         var counts: [String: Int] = [:]
+        // Four at a time: dozens of agent worktrees mustn't flood the machine with git processes.
+        let jobs = trees.prefix(60).map { (path: $0.path, git: git(for: $0)) }
         await withTaskGroup(of: (String, Int?).self) { group in
-            for tree in trees.prefix(40) {
-                let g = git(for: tree)
+            var pending = jobs.makeIterator()
+            func addNext() {
+                guard let job = pending.next() else { return }
+                let g = job.git, path = job.path
                 group.addTask {
                     let out = try? await g.string(["status", "--porcelain", "--untracked-files=normal"])
-                    return (tree.path, out.map { $0.split(separator: "\n").count })
+                    return (path, out.map { $0.split(separator: "\n").count })
                 }
             }
-            for await (path, count) in group { if let count { counts[path] = count } }
+            for _ in 0..<4 { addNext() }
+            for await (path, count) in group {
+                if let count { counts[path] = count }
+                addNext()
+            }
         }
         if counts != worktreeChanges { worktreeChanges = counts }
     }
