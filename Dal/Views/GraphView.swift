@@ -7,8 +7,10 @@ struct GraphView: View {
     @AppStorage("graphColumnWidth") private var graphMax: Double = 170
     @FocusState private var focused: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// First load of a tab: the top rows drift in one after another — once, then never again.
+    /// App launch only: the first graph's top rows drift in one after another. Switching or
+    /// opening tabs afterwards shows the graph at once.
     @State private var revealed = false
+    @MainActor private static var launchRevealDone = false
     @State private var revealOrder: [String: Int] = [:]
 
     var body: some View {
@@ -99,10 +101,15 @@ struct GraphView: View {
         }
     }
 
-    /// Staggers only the first screenful; everything else (and a second visit) appears as is.
+    /// Staggers only the first screenful of the first graph after launch; everything else appears as is.
     private func prepareReveal() {
         guard !revealed, store.loaded else { return }
-        if reduceMotion || store.items.isEmpty { revealed = true; return }
+        if reduceMotion || store.items.isEmpty || Self.launchRevealDone {
+            Self.launchRevealDone = true
+            revealed = true
+            return
+        }
+        Self.launchRevealDone = true
         revealOrder = Dictionary(uniqueKeysWithValues: store.items.prefix(28).enumerated().map { ($1.id, $0) })
         DispatchQueue.main.async { revealed = true }
     }
