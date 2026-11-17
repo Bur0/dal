@@ -6,6 +6,10 @@ struct GraphView: View {
     @AppStorage("refColumnWidth") private var refWidth: Double = 200
     @AppStorage("graphColumnWidth") private var graphMax: Double = 170
     @FocusState private var focused: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// First load of a tab: the top rows drift in one after another — once, then never again.
+    @State private var revealed = false
+    @State private var revealOrder: [String: Int] = [:]
 
     var body: some View {
         GeometryReader { geo in
@@ -21,8 +25,12 @@ struct GraphView: View {
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(store.items) { item in
+                            let order = revealOrder[item.id]
                             GraphRowView(store: store, item: item, columns: columns)
                                 .id(item.id)
+                                .opacity(order == nil || revealed ? 1 : 0)
+                                .offset(y: order == nil || revealed ? 0 : 6)
+                                .animation(order.map { .easeOut(duration: 0.28).delay(Double($0) * 0.014) }, value: revealed)
                         }
                         if store.hasMore {
                             HStack(spacing: 8) {
@@ -52,6 +60,25 @@ struct GraphView: View {
                     store.scrollTarget = nil
                 }
                 .simultaneousGesture(TapGesture().onEnded { focused = true })
+                .onAppear { prepareReveal() }
+                .onChange(of: store.loaded) { _, _ in prepareReveal() }
+                // Unfolded branch lists live here, above every row: inside a LazyVStack a row's
+                // zIndex doesn't lift it over the rows after it.
+                .overlayPreferenceValue(RefCellAnchors.self) { anchors in
+                    GeometryReader { proxy in
+                        if let id = openRefsRow, let anchor = anchors[id],
+                           let item = store.items.first(where: { $0.id == id }), let commit = item.commit {
+                            let rect = proxy[anchor]
+                            ExpandedRefs(store: store, badges: store.badges[commit.sha] ?? [],
+                                         color: Theme.badgeTint(item.row.color, head: store.headLaneColor),
+                                         minWidth: columns.refWidth - 4)
+                                .onHover { store.hoverRefs(id, inside: $0) }
+                                .offset(x: rect.minX, y: rect.minY)
+                                .transition(.opacity)
+                        }
+                    }
+                    .animation(.easeOut(duration: 0.12), value: openRefsRow)
+                }
             }
         }
         .confirmationDialog(dropTitle, isPresented: Binding(get: { store.drop != nil }, set: { if !$0 { store.drop = nil } }),
@@ -70,6 +97,21 @@ struct GraphView: View {
         } message: { drop in
             Text(drop.target == store.headBranch ? "" : "\(drop.target) isn't checked out; merging checks it out first.")
         }
+    }
+
+    /// Staggers only the first screenful; everything else (and a second visit) appears as is.
+    private func prepareReveal() {
+        guard !revealed, store.loaded else { return }
+        if reduceMotion || store.items.isEmpty { revealed = true; return }
+        revealOrder = Dictionary(uniqueKeysWithValues: store.items.prefix(28).enumerated().map { ($1.id, $0) })
+        DispatchQueue.main.async { revealed = true }
+    }
+
+    private var openRefsRow: String? {
+        #if DEBUG
+        if let forced = store.debugExpandedRefs { return forced }
+        #endif
+        return store.expandedRefsRow
     }
 
     private var dropTitle: String {
@@ -160,8 +202,6 @@ private struct GraphRowView: View {
 
     @State private var hovering = false
     @State private var dropTargeted = false
-    @State private var refsExpanded = false
-    @State private var refsHoverTask: Task<Void, Never>?
 
     private var isSelected: Bool {
         switch store.selection {
@@ -173,6 +213,7 @@ private struct GraphRowView: View {
 
     private var badges: [RefBadge] { item.commit.flatMap { store.badges[$0.sha] } ?? [] }
     private var laneColor: Color { Theme.lane(item.row.color, head: store.headLaneColor) }
+    private var badgeTint: Color { Theme.badgeTint(item.row.color, head: store.headLaneColor) }
     private var isHeadCommit: Bool { item.commit != nil && item.commit?.sha == store.headSha }
     private var dimmed: Bool {
         guard !store.searchText.trimmed.isEmpty else { return false }
@@ -247,8 +288,6 @@ private struct GraphRowView: View {
             }
             return true
         } isTargeted: { dropTargeted = $0 && dropTargetName != nil }
-        // The expanded branch list draws over the rows below it.
-        .zIndex(refsExpanded || debugForcedOpen ? 10 : 0)
     }
 
     /// Hovering the branch/tag cell lists every ref on the commit, untruncated (GitKraken-style).
@@ -267,24 +306,9 @@ private struct GraphRowView: View {
         #endif
     }
 
-    private var debugForcedOpen: Bool {
-        #if DEBUG
-        return store.debugExpandedRefs == item.id
-        #else
-        return false
-        #endif
-    }
-
     private func hoverRefs(_ inside: Bool) {
-        refsHoverTask?.cancel()
         guard refsNeedExpanding else { return }
-        // Short delays: no flicker when the pointer sweeps across rows, and moving from the
-        // cell into the expanded list doesn't close it.
-        refsHoverTask = Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(inside ? 150 : 120))
-            guard !Task.isCancelled else { return }
-            withAnimation(.easeOut(duration: 0.12)) { refsExpanded = inside }
-        }
+        store.hoverRefs(item.id, inside: inside)
     }
 
     /// Dropping a branch on a row targets that row's local branch. Remote-only rows aren't
@@ -322,7 +346,7 @@ private struct GraphRowView: View {
             }
         } else if let first = badges.first {
             HStack(spacing: 4) {
-                BadgeItem(store: store, badge: first, color: laneColor)
+                BadgeItem(store: store, badge: first, color: badgeTint)
                     .layoutPriority(2)   // the name wins space over the connector line
                 if badges.count > 1 {
                     Menu {
@@ -334,9 +358,8 @@ private struct GraphRowView: View {
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(Theme.secondaryText)
                             .padding(.horizontal, 6)
-                            .frame(height: 21)
+                            .frame(height: 22)
                             .background(RoundedRectangle(cornerRadius: 5).fill(Theme.badgeFill))
-                            .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(Theme.badgeStroke))
                     }
                     .menuStyle(.borderlessButton)
                     .menuIndicator(.hidden)
@@ -350,17 +373,11 @@ private struct GraphRowView: View {
             .frame(maxHeight: .infinity)
             .contentShape(Rectangle())
             .onHover { hoverRefs($0) }
-            .overlay(alignment: .topLeading) {
-                if refsExpanded || debugForcedOpen {
-                    ExpandedRefs(store: store, badges: badges, color: laneColor, minWidth: columns.refWidth - 4)
-                        .onHover { hoverRefs($0) }
-                        .transition(.opacity)
-                }
-            }
+            .anchorPreference(key: RefCellAnchors.self, value: .bounds) { [item.id: $0] }
         } else if isHovered, !item.isWIP, let owner = store.laneOwners[item.row.color] {
             // Which branch this commit belongs to, shown faintly like GitKraken.
             HStack(spacing: 4) {
-                RefBadgeView(badge: owner, color: laneColor)
+                RefBadgeView(badge: owner, color: badgeTint)
                     .opacity(0.5)
                     .layoutPriority(2)
                 connectorLine
@@ -418,6 +435,27 @@ private struct GraphRowView: View {
         .padding(.horizontal, 6)
         .frame(height: 17)
         .background(Capsule().fill(color.opacity(0.14)))
+    }
+}
+
+/// Where each row's branch cell is, so the graph can draw an unfolded list on top of all rows.
+private struct RefCellAnchors: PreferenceKey {
+    static let defaultValue: [String: Anchor<CGRect>] = [:]
+    static func reduce(value: inout [String: Anchor<CGRect>], nextValue: () -> [String: Anchor<CGRect>]) {
+        value.merge(nextValue()) { $1 }
+    }
+}
+
+extension RepoStore {
+    /// Short delays: no flicker when the pointer sweeps across rows, and moving from the cell
+    /// into the unfolded list (or back) doesn't close it.
+    func hoverRefs(_ row: String, inside: Bool) {
+        refsHoverTask?.cancel()
+        refsHoverTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(inside ? 150 : 120))
+            guard let self, !Task.isCancelled else { return }
+            if inside { expandedRefsRow = row } else if expandedRefsRow == row { expandedRefsRow = nil }
+        }
     }
 }
 
@@ -766,7 +804,17 @@ private struct RefMenu: View {
         if let ref = local ?? remotes.first {
             Button("Copy Branch Name") { store.copy(ref.name, label: "Copied \(ref.name)") }
         }
-        if let tag { Button("Copy Tag Name") { store.copy(tag.name, label: "Copied \(tag.name)") } }
+        // The label's own tag, plus any other tags on this commit (right-clicking the row).
+        let tags = ([tag].compactMap { $0 } + badges.compactMap(\.tag)).reduce(into: [Ref]()) { list, ref in
+            if !list.contains(where: { $0.name == ref.name }) { list.append(ref) }
+        }
+        if tags.count == 1, let only = tags.first {
+            Button(tag == nil ? "Copy Tag Name “\(only.name)”" : "Copy Tag Name") { store.copy(only.name, label: "Copied \(only.name)") }
+        } else if tags.count > 1 {
+            Menu("Copy Tag Name") {
+                ForEach(tags) { ref in Button(ref.name) { store.copy(ref.name, label: "Copied \(ref.name)") } }
+            }
+        }
         if let commit {
             Button("Copy Commit SHA") { store.copy(commit.sha, label: "Copied \(commit.shortSha)") }
             Button("Copy Commit Message") { store.copy(commit.fullMessage, label: "Copied message") }

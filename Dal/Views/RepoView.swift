@@ -344,7 +344,7 @@ struct RepoToolbar: View {
         .frame(width: compact ? 150 : 210, height: 26)
         .background(RoundedRectangle(cornerRadius: 6).fill(Theme.subtleFill))
         .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(searchFocused ? Color.accentColor.opacity(0.7) : .clear))
-        .help("Search by message, author, SHA or branch. Enter = next, ⇧Enter = previous.")
+        .help("Search by message, author, SHA, branch or tag. Enter = next, ⇧Enter = previous.")
         .onReceive(NotificationCenter.default.publisher(for: .focusSearch)) { _ in searchFocused = true }
     }
 }

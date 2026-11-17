@@ -3,18 +3,30 @@ import UniformTypeIdentifiers
 
 struct MainWindow: View {
     @Environment(AppState.self) private var app
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Launch: the content settles in once — a short fade with a hint of scale and focus.
+    @State private var launched = false
 
     var body: some View {
         @Bindable var app = app
         VStack(spacing: 0) {
             TabBar()
             Divider()
-            if let store = app.current {
-                RepoView(store: store)
-                    .id(store.id)
-            } else {
-                WelcomeView()
+            Group {
+                if let store = app.current {
+                    RepoView(store: store)
+                        .id(store.id)
+                } else {
+                    WelcomeView()
+                }
             }
+            .opacity(launched ? 1 : 0)
+            .scaleEffect(launched || reduceMotion ? 1 : 0.985, anchor: .top)
+            .blur(radius: launched || reduceMotion ? 0 : 4)
+        }
+        .onAppear {
+            guard !launched else { return }
+            withAnimation(reduceMotion ? .easeOut(duration: 0.15) : .easeOut(duration: 0.38)) { launched = true }
         }
         .background(Theme.window)
         .ignoresSafeArea(.container, edges: .top)

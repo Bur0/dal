@@ -43,6 +43,8 @@ struct BranchNode: Identifiable, Hashable {
 struct SidebarView: View {
     @Bindable var store: RepoStore
     @State private var filter = ""
+    /// The Tags section's own search: repositories can have hundreds of release tags.
+    @State private var tagQuery = ""
     @AppStorage("sidebar.local") private var localOpen = true
     @AppStorage("sidebar.remote") private var remoteOpen = true
     @AppStorage("sidebar.stash") private var stashOpen = true
@@ -59,7 +61,7 @@ struct SidebarView: View {
         VStack(spacing: 0) {
             HStack(spacing: 5) {
                 Image(systemName: "line.3.horizontal.decrease").font(.system(size: 11)).foregroundStyle(Theme.secondaryText)
-                TextField("Filter", text: $filter)
+                TextField("Filter branches, tags…", text: $filter)
                     .textFieldStyle(.plain)
                     .font(.system(size: 12))
                     .onExitCommand { filter = "" }
@@ -122,14 +124,42 @@ struct SidebarView: View {
                 }
 
                 Section(isExpanded: forced($tagsOpen)) {
-                    ForEach(store.tags.filter { matches($0.name) }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedDescending }) { tag in
+                    let query = tagQuery.trimmed
+                    let shown = store.tags
+                        .filter { matches($0.name) && (query.isEmpty || $0.name.localizedCaseInsensitiveContains(query)) }
+                        .sorted { $0.name.localizedStandardCompare($1.name) == .orderedDescending }
+                    if store.tags.count > 1 {
+                        HStack(spacing: 5) {
+                            Image(systemName: "magnifyingglass").font(.system(size: 10)).foregroundStyle(Theme.mutedText)
+                            TextField("Search tags", text: $tagQuery)
+                                .textFieldStyle(.plain)
+                                .font(.system(size: 11))
+                                .onExitCommand { tagQuery = "" }
+                                .onSubmit { if let first = shown.first { store.select(commit: first.target, scroll: true) } }
+                            if !tagQuery.isEmpty {
+                                Button { tagQuery = "" } label: { Image(systemName: "xmark.circle.fill").font(.system(size: 10)) }
+                                    .buttonStyle(.plain).foregroundStyle(Theme.mutedText)
+                                    .accessibilityLabel("Clear tag search")
+                            }
+                        }
+                        .padding(.horizontal, 6)
+                        .frame(height: 22)
+                        .background(RoundedRectangle(cornerRadius: 5).fill(Theme.subtleFill))
+                        .help("Filter tags by name. Enter jumps to the first match.")
+                    }
+                    ForEach(shown) { tag in
                         SidebarItem(symbol: "tag", title: tag.name, selected: false,
                                     highlighted: store.selection == .commit(tag.target)) {
                             store.select(commit: tag.target, scroll: true)
                         }
+                        .help("\(tag.name)\nRight-click to copy the name, check out or push")
                         .contextMenu { BadgeMenu(store: store, badge: RefBadge(id: tag.fullName, name: tag.name, tag: tag)) }
                     }
-                    if store.tags.isEmpty { emptyRow("No tags") }
+                    if store.tags.isEmpty {
+                        emptyRow("No tags")
+                    } else if shown.isEmpty {
+                        emptyRow("No tags match")
+                    }
                 } header: {
                     header("Tags", count: store.tags.count, symbol: "tag")
                 }

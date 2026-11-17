@@ -189,6 +189,10 @@ final class RepoStore: Identifiable {
     #if DEBUG
     /// Debug snapshots can't hover; this forces one row's branch list open.
     var debugExpandedRefs: String?
+    /// The graph row whose branch list is unfolded (hovering its branch cell). Drawn by the graph
+    /// above all rows, so the list covers the rows below instead of slipping under them.
+    var expandedRefsRow: String?
+    @ObservationIgnored var refsHoverTask: Task<Void, Never>?
     var debugHoveredRow: String?
     /// Debug snapshots: "1:both" picks both sides of conflict 1 in the merge tool.
     var debugConflictPick: String?

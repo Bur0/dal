@@ -110,7 +110,9 @@ struct CommitDetailView: View {
             if let refs = store.badges[commit.sha], !refs.isEmpty {
                 FlowRow(spacing: 4) {
                     ForEach(refs) { badge in
-                        RefBadgeView(badge: badge, color: Theme.lane(store.laneColor(for: commit.sha), head: store.headLaneColor))
+                        RefBadgeView(badge: badge, color: Theme.badgeTint(store.laneColor(for: commit.sha), head: store.headLaneColor))
+                            .contextMenu { BadgeMenu(store: store, badge: badge) }
+                            .help("\(badge.name) — right-click to copy, check out and more")
                     }
                 }
             }

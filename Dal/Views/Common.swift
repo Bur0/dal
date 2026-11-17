@@ -73,7 +73,14 @@ enum Theme {
         return index == head ? Color.accentColor : lane(index).opacity(0.4)
     }
 
-    /// Branch labels other than the checked-out one are neutral; a small dot carries the lane.
+    /// Text on lane-tinted labels.
+    static let badgeText = dynamic(light: Color.black.opacity(0.85), dark: Color.white.opacity(0.92))
+    /// A branch label's fill: its lane colour, toned down so white/black text stays easy to read.
+    /// Drawn over the panel colour, so it's opaque and reads the same on any row background.
+    static func badgeTint(_ index: Int, head: Int?) -> Color {
+        if let head, index == head { return Color.accentColor.opacity(0.32) }
+        return lane(index).opacity(0.34)
+    }
     static let badgeFill = dynamic(light: Color.black.opacity(0.05), dark: Color.white.opacity(0.08))
     static let badgeStroke = dynamic(light: Color.black.opacity(0.13), dark: Color.white.opacity(0.14))
 
@@ -302,8 +309,6 @@ struct RefBadgeView: View {
                 Image(systemName: "checkmark.circle.fill").font(.system(size: 12))
             } else if badge.tag != nil && badge.local == nil && badge.remotes.isEmpty {
                 Image(systemName: "tag").font(.system(size: 10.5, weight: .medium)).foregroundStyle(.secondary)
-            } else {
-                Circle().fill(color).frame(width: 7, height: 7)
             }
             if compact || untruncated {
                 name
@@ -318,13 +323,25 @@ struct RefBadgeView: View {
             }
         }
         .font(.system(size: 12, weight: head ? .semibold : .medium))
-        .foregroundStyle(head ? AnyShapeStyle(Color.white) : AnyShapeStyle(.primary))
+        .foregroundStyle(head ? AnyShapeStyle(Color.white) : AnyShapeStyle(Theme.badgeText))
         .padding(.leading, head ? 5 : 8)
         .padding(.trailing, 8)
-        .frame(height: 23)
-        .background(RoundedRectangle(cornerRadius: 6).fill(head ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(Theme.badgeFill)))
-        .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(head ? Color.clear : Theme.badgeStroke, lineWidth: 1))
+        .frame(height: 22)
+        // GitKraken-style: one flat fill in the branch's lane colour, no outline, no extra dot —
+        // the colour ties the label to its line without boxes competing for attention.
+        .background { if head { RoundedRectangle(cornerRadius: 5).fill(Color.accentColor) } else { fill } }
         .help(helpText)
+    }
+
+    /// `color` is the label's tint (Theme.badgeTint), laid over the panel colour so the label is
+    /// opaque. Tags without a branch stay neutral.
+    @ViewBuilder private var fill: some View {
+        let shape = RoundedRectangle(cornerRadius: 5)
+        if badge.local == nil && badge.remotes.isEmpty {
+            shape.fill(Theme.panel).overlay(shape.fill(Theme.badgeFill))
+        } else {
+            shape.fill(Theme.panel).overlay(shape.fill(color))
+        }
     }
 
     private var name: some View {
