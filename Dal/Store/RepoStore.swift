@@ -186,13 +186,13 @@ final class RepoStore: Identifiable {
     var fileFocus: FileFocus?
     var scrollTarget: String?
     var scrollCentered = true
-    #if DEBUG
-    /// Debug snapshots can't hover; this forces one row's branch list open.
-    var debugExpandedRefs: String?
     /// The graph row whose branch list is unfolded (hovering its branch cell). Drawn by the graph
     /// above all rows, so the list covers the rows below instead of slipping under them.
     var expandedRefsRow: String?
     @ObservationIgnored var refsHoverTask: Task<Void, Never>?
+    #if DEBUG
+    /// Debug snapshots can't hover; this forces one row's branch list open.
+    var debugExpandedRefs: String?
     var debugHoveredRow: String?
     /// Debug snapshots: "1:both" picks both sides of conflict 1 in the merge tool.
     var debugConflictPick: String?
