@@ -62,8 +62,12 @@ struct RefBadge: Identifiable, Hashable {
     var remotes: [Ref] = []
     var tag: Ref?
     var isHead = false
+    /// A detached HEAD with no tag on its commit gets a "HEAD" label of its own.
+    var detachedAt: String?
 
     var primary: Ref? { local ?? remotes.first ?? tag }
+    /// The commit this label sits on.
+    var target: String { primary?.target ?? detachedAt ?? "" }
 }
 
 enum ChangeKind: String, Hashable {

@@ -54,6 +54,14 @@ struct GraphView: View {
                 .onKeyPress(.pageDown) { store.moveSelection(20); return .handled }
                 .onKeyPress(.home) { store.moveSelection(-store.items.count); return .handled }
                 .onKeyPress(.end) { store.moveSelection(store.items.count); return .handled }
+                .onAppear {
+                    // A target set before the graph existed (first load: scroll to HEAD).
+                    guard let target = store.scrollTarget else { return }
+                    DispatchQueue.main.async {
+                        proxy.scrollTo(target, anchor: store.scrollCentered ? .center : nil)
+                        store.scrollTarget = nil
+                    }
+                }
                 .onChange(of: store.scrollTarget) { _, target in
                     guard let target else { return }
                     withAnimation(.easeOut(duration: 0.2)) {
@@ -502,7 +510,7 @@ private struct BadgeItem: View {
 
     var body: some View {
         RefBadgeView(badge: badge, color: color, untruncated: fullWidth)
-            .onClick({ store.select(commit: badge.primary?.target ?? "") }, double: checkout)
+            .onClick({ store.select(commit: badge.target) }, double: checkout)
             .contextMenu { BadgeMenu(store: store, badge: badge) }
             .accessibilityLabel("Branch \(badge.name)")
             .if(badge.local != nil || !badge.remotes.isEmpty) { view in
@@ -513,6 +521,7 @@ private struct BadgeItem: View {
     }
 
     private func checkout() {
+        if badge.isHead { return }   // already here (the checked-out branch, or the tag HEAD is on)
         if let local = badge.local {
             if !local.isHead { store.checkout(local.name) }
         } else if let remote = badge.remotes.first {
@@ -638,7 +647,7 @@ struct BadgeMenu: View {
     let badge: RefBadge
 
     var body: some View {
-        let target = badge.primary?.target ?? ""
+        let target = badge.target
         RefMenu(store: store, commit: store.commit(target), badge: badge, badges: store.badges[target] ?? [badge])
     }
 }

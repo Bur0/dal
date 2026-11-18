@@ -186,6 +186,8 @@ final class RepoStore: Identifiable {
     var fileFocus: FileFocus?
     var scrollTarget: String?
     var scrollCentered = true
+    /// After a checkout (and on the first load) the graph scrolls to where HEAD now is.
+    @ObservationIgnored var revealHeadPending = true
     /// The graph row whose branch list is unfolded (hovering its branch cell). Drawn by the graph
     /// above all rows, so the list covers the rows below instead of slipping under them.
     var expandedRefsRow: String?
@@ -215,6 +217,7 @@ final class RepoStore: Identifiable {
     var toast: String?
     var toastWarning = false
     var showCreatePR = false
+    var showBranchSwitcher = false
     var createPRHead: String?
     var loaded = false
     var refreshVersion = 0
@@ -387,11 +390,12 @@ final class RepoStore: Identifiable {
             update(\.worktrees, newWorktrees)
             if newWorktrees.count > 1 { Task { await loadWorktreeStatus(force: worktreesChanged) } }
             update(\.remotes, newRemotes)
+            let headMoved = newHead != headSha || newBranch != headBranch
             update(\.headBranch, newBranch)
             update(\.headSha, newHead)
-            if newRefs != refs {
+            if newRefs != refs || headMoved || badges.isEmpty {
                 refs = newRefs
-                badges = Parse.badges(newRefs)
+                badges = Parse.badges(newRefs, detachedHead: newBranch == nil ? newHead : nil)
             }
             update(\.status, newStatus)
             update(\.ongoing, newOngoing)
@@ -404,6 +408,14 @@ final class RepoStore: Identifiable {
             loadingMore = false
             if graphChanged || items.isEmpty { rebuildGraph() }
             validateSelection()
+            if revealHeadPending, let head = newHead, items.contains(where: { $0.id == head }) {
+                revealHeadPending = false
+                // The first screenful already shows it: leave the scroll position alone.
+                if let index = items.firstIndex(where: { $0.id == head }), index > 12 || loaded {
+                    scrollCentered = true
+                    scrollTarget = head
+                }
+            }
             update(\.loaded, true)
             if statusChanged || graphChanged { refreshVersion += 1 }
         } catch {

@@ -137,6 +137,9 @@ struct AppCommands: Commands {
             Button("Push") { store?.push() }
                 .keyboardShortcut("p", modifiers: [.command, .option])
             Divider()
+            Button("Switch Branch or Tag…") { store?.showBranchSwitcher = true }
+                .keyboardShortcut("b", modifiers: [.command, .shift])
+                .disabled(store == nil)
             Button("Create Branch…") { store?.promptCreateBranch() }
                 .keyboardShortcut("b", modifiers: [.command, .option])
             Button("Stash Changes") { store?.stash() }

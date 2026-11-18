@@ -169,6 +169,33 @@ enum DebugSnapshot {
                         try? line.write(toFile: arg, atomically: true, encoding: .utf8)
                     }
                 }
+            case "waitload":
+                // waitload:/path — waits for the current tab's first load, appends the seconds it took.
+                let start = Date()
+                while !(AppState.shared.current?.loaded ?? false), Date().timeIntervalSince(start) < 120 {
+                    try? await Task.sleep(for: .milliseconds(20))
+                }
+                let line = String(format: "load=%.2fs items=%d\n", Date().timeIntervalSince(start), AppState.shared.current?.items.count ?? 0)
+                if let handle = FileHandle(forWritingAtPath: arg) {
+                    handle.seekToEndOfFile(); handle.write(Data(line.utf8)); try? handle.close()
+                } else {
+                    try? line.write(toFile: arg, atomically: true, encoding: .utf8)
+                }
+            case "branchswitcher":
+                store?.showBranchSwitcher = true
+            case "shotpopover":
+                try? await Task.sleep(for: .milliseconds(300))
+                if let pop = NSApp.windows.first(where: { $0.isVisible && $0.className.contains("Popover") }) { capture(pop, to: arg) }
+            case "typekeys":
+                // typekeys:text — types into the focused field of the key window.
+                if let window = NSApp.windows.first(where: { $0.isVisible && $0.className.contains("Popover") }) ?? NSApp.keyWindow {
+                    window.makeKey()
+                    (window.firstResponder as? NSTextView)?.insertText(arg, replacementRange: NSRange(location: NSNotFound, length: 0))
+                }
+            case "returnkey":
+                if let window = NSApp.windows.first(where: { $0.isVisible && $0.className.contains("Popover") }) ?? NSApp.keyWindow {
+                    window.firstResponder?.doCommand(by: #selector(NSResponder.insertNewline(_:)))
+                }
             case "dismissalert":
                 store?.alert = nil
             case "confirmalert":

@@ -291,26 +291,34 @@ struct RepoToolbar: View {
                     }
                     .frame(width: 13, height: 13)
                     .help(otherBusy.map { "\($0)…" } ?? "")
-                    Menu {
-                        if let otherBusy {
-                            Button("Cancel \(otherBusy.lowercased())") { store.cancelRunning() }
-                            Divider()
-                        }
-                        ForEach(store.localBranches) { ref in
-                            Button {
-                                if !ref.isHead { store.checkout(ref.name) }
-                            } label: {
-                                if ref.isHead { Label(ref.name, systemImage: "checkmark") } else { Text(ref.name) }
-                            }
-                        }
-                        Divider()
-                        Button("New Branch…") { store.promptCreateBranch() }
+                    Button {
+                        store.showBranchSwitcher.toggle()
                     } label: {
-                        Text(store.headBranch ?? (store.headSha.map { "detached @ \(String($0.prefix(7)))" } ?? "no commits"))
+                        HStack(spacing: 3) {
+                            let label = store.headBranch ?? store.detachedLabel ?? "no commits"
+                            // Its natural width, but a 70-character branch name stops at 280 pt
+                            // (middle-truncated) instead of squeezing the toolbar buttons.
+                            ViewThatFits(in: .horizontal) {
+                                Text(label).fixedSize()
+                                Text(label).lineLimit(1).truncationMode(.middle).frame(width: 280, alignment: .leading)
+                            }
                             .font(.system(size: 13, weight: .semibold))
+                            .frame(maxWidth: 280, alignment: .leading)
+                            .fixedSize()
+                            Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold))
+                                .foregroundStyle(Theme.secondaryText)
+                        }
+                        .contentShape(Rectangle())
                     }
-                    .menuStyle(.borderlessButton)
-                    .fixedSize()
+                    .buttonStyle(.plain)
+                    .help("\(store.headBranch ?? store.detachedLabel ?? "")\nSwitch branch or tag (⇧⌘B)")
+                    .popover(isPresented: $store.showBranchSwitcher, arrowEdge: .bottom) {
+                        BranchSwitcher(store: store) { store.showBranchSwitcher = false }
+                    }
+                    .contextMenu {
+                        if let otherBusy { Button("Cancel \(otherBusy.lowercased())") { store.cancelRunning() } }
+                        Button("New Branch…") { store.promptCreateBranch() }
+                    }
                 }
             }
         }

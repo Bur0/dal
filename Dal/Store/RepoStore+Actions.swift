@@ -89,6 +89,16 @@ extension RepoStore {
 
     var currentPosition: String? { headBranch ?? headSha }
 
+    /// Detached HEAD in words: "v1.4.0 (detached)" when a tag is there, else "detached @ abc1234".
+    var detachedLabel: String? {
+        guard headBranch == nil, let sha = headSha else { return nil }
+        if let tag = tags.filter({ $0.target == sha }).map(\.name)
+            .sorted(by: { $0.localizedStandardCompare($1) == .orderedDescending }).first {
+            return "\(tag) (detached)"
+        }
+        return "detached @ \(String(sha.prefix(7)))"
+    }
+
     // MARK: Checkout & branches
 
     func checkout(_ target: String) {
@@ -138,6 +148,7 @@ extension RepoStore {
                 return
             }
             if let before { pushUndo(.checkout(before: before, after: target)) }
+            revealHeadPending = true
             showToast(success)
         }
     }
@@ -171,6 +182,7 @@ extension RepoStore {
                     throw error
                 }
                 if let before { self.pushUndo(.checkout(before: before, after: target)) }
+                self.revealHeadPending = true
                 self.showToast("\(success) — your changes from \(from) are stashed")
             }
         }

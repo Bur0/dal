@@ -269,7 +269,9 @@ enum Parse {
     }
 
     /// Groups refs into graph badges keyed by commit sha.
-    static func badges(_ refs: [Ref]) -> [String: [RefBadge]] {
+    /// `detachedHead`: the commit HEAD points at when no branch is checked out. A tag there is
+    /// shown as the current position; without one, a "HEAD" label marks it.
+    static func badges(_ refs: [Ref], detachedHead: String? = nil) -> [String: [RefBadge]] {
         var bySha: [String: [RefBadge]] = [:]
         let grouped = Dictionary(grouping: refs, by: \.target)
         for (sha, list) in grouped {
@@ -296,6 +298,17 @@ enum Parse {
                 return a.name.localizedStandardCompare(b.name) == .orderedAscending
             }
             bySha[sha] = badges
+        }
+        if let head = detachedHead {
+            var list = bySha[head] ?? []
+            if let i = list.firstIndex(where: { $0.tag != nil && $0.local == nil && $0.remotes.isEmpty }) {
+                var tag = list.remove(at: i)
+                tag.isHead = true
+                list.insert(tag, at: 0)
+            } else {
+                list.insert(RefBadge(id: "HEAD", name: "HEAD", isHead: true, detachedAt: head), at: 0)
+            }
+            bySha[head] = list
         }
         return bySha
     }

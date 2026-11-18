@@ -148,11 +148,13 @@ struct SidebarView: View {
                         .help("Filter tags by name. Enter jumps to the first match.")
                     }
                     ForEach(shown) { tag in
-                        SidebarItem(symbol: "tag", title: tag.name, selected: false,
-                                    highlighted: store.selection == .commit(tag.target)) {
+                        let here = store.headBranch == nil && store.headSha == tag.target
+                        SidebarItem(symbol: here ? "checkmark.circle.fill" : "tag", title: tag.name, selected: here, bold: here,
+                                    highlighted: store.selection == .commit(tag.target),
+                                    double: { if !here { store.checkout(tag.name) } }) {
                             store.select(commit: tag.target, scroll: true)
                         }
-                        .help("\(tag.name)\nRight-click to copy the name, check out or push")
+                        .help("\(tag.name)\nDouble-click to check out (detached HEAD) · right-click to copy the name or push")
                         .contextMenu { BadgeMenu(store: store, badge: RefBadge(id: tag.fullName, name: tag.name, tag: tag)) }
                     }
                     if store.tags.isEmpty {

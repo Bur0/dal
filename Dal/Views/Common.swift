@@ -347,7 +347,8 @@ struct RefBadgeView: View {
     private var name: some View {
         Text(badge.name)
             .lineLimit(1)
-            .truncationMode(.middle)
+            // Tail: "feat/BLT-11199-worktree…" keeps the prefix and ticket number readable.
+            .truncationMode(.tail)
             .fixedSize(horizontal: untruncated, vertical: false)
     }
 
@@ -385,6 +386,9 @@ struct RefBadgeView: View {
         }
         for remote in badge.remotes { parts.append("Remote: \(remote.name)") }
         if let tag = badge.tag { parts.append("Tag: \(tag.name)") }
+        if badge.isHead && badge.local == nil {
+            parts.append("Detached HEAD — you're on this commit, not on a branch. Check out a branch to commit on it.")
+        }
         return parts.joined(separator: "\n")
     }
 }
